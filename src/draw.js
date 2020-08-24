@@ -1,13 +1,18 @@
 import {
     Scene, Text, Rectangle, Component,
     Color, Container, Line, Circle, Button
-} from "https://unpkg.com/pencil.js/dist/pencil.esm.js";
+} from "pencil.js";
 
-const cell_size = 64;
-const grid_w = 10;
-const grid_h = 10;
-const grid_left = 1;
-const grid_top = 1;
+import pako from "pako";
+import msgpack from "msgpack-lite";
+
+let cell_size = 64;
+let grid_w = 9;
+let grid_h = 9;
+let grid_left = 0;
+let grid_top = 0;
+let grid_bottom = 0;
+let grid_right = 0;
 const corner_offset = cell_size * 0.08;
 const hover_offset = cell_size * 0.2;
 
@@ -46,6 +51,19 @@ let outer = null;
 let underlay = null;
 let shift = false;
 let cursor = null;
+
+function reset() {
+    matrix = [];
+    stuff = [];
+    undo_stack = [];
+    thermo = null;
+    cage = null;
+    edge_cage = null;
+    outer = null;
+    underlay = null;
+    shift = false;
+    cursor = null;
+}
 
 const textOptions = {
     font: "sans-serif",
@@ -98,22 +116,22 @@ function set_cell(x, y, mode, newtext)
         old_normal: m.normal.text
     };
 
-    if (!m.main_grid && mode != "set") {
+    if (!m.main_grid && mode !== "set") {
         return;
     }
-    if (m.lock_type == lock_normal && mode != "set") {
+    if (m.lock_type === lock_normal && mode !== "set") {
         return;
     }
 
-    if (mode == "normal" || mode == "set") {
-        if (mode == "normal") {
+    if (mode === "normal" || mode === "set") {
+        if (mode === "normal") {
             m.normal.options.fill = sol_text_color;
         }
         else {
-            m.lock_type = (newtext != "") ? lock_normal : 0;
+            m.lock_type = (newtext !== "") ? lock_normal : 0;
             m.normal.options.fill = "black";
         }
-        if (!m.main_grid && newtext != "")
+        if (!m.main_grid && newtext !== "")
             m.normal.text += newtext;
         else
             m.normal.text = newtext;
@@ -124,14 +142,14 @@ function set_cell(x, y, mode, newtext)
         m.corner.forEach(t => { t.text = ""; });
         m.side.forEach(t => { t.text = ""; });
     }
-    else if (mode == "center") {
+    else if (mode === "center") {
         let current = m.center.text;
         let center = "";
         m.center.options.fill = sol_text_color;
-        if (newtext != "") {
+        if (newtext !== "") {
             for (let i = 1; i <= 9; ++i) {
-                if ((current.indexOf(i) == -1 && i == newtext)
-                    || (current.indexOf(i) != -1 && i != newtext)) {
+                if ((current.indexOf(i) === -1 && i === +newtext)
+                    || (current.indexOf(i) !== -1 && i !== +newtext)) {
                     center += i;
                 }
             }
@@ -139,26 +157,26 @@ function set_cell(x, y, mode, newtext)
 
         m.normal.text = "";
         m.center.text = center;
-        const meas = Text.measure(center, m.center.text.options);
+        const meas = Text.measure(center, m.center.options);
         m.center.position.x = (cell_size - meas.width) / 2;
         m.center.position.y = (cell_size - meas.height) / 2;
     }
-    else if (mode == "set_corner") {
-        if (newtext == "")
+    else if (mode === "set_corner") {
+        if (newtext === "")
             m.cage_corner.text = "";
         else
             m.cage_corner.text += newtext;
-        m.lock_type = (newtext != "") ? lock_corner : 0;
+        m.lock_type = (newtext !== "") ? lock_corner : 0;
     }
-    else if (mode == "corner") {
+    else if (mode === "corner") {
         let current = "";
         m.corner.forEach(t => { current += t.text; });
         m.side.forEach(t => { current += t.text; });
         let text = "";
-        if (newtext != "") {
+        if (newtext !== "") {
             for (let i = 1; i <= 9; ++i) {
-                if ((current.indexOf(i) == -1 && i == newtext)
-                    || (current.indexOf(i) != -1 && i != newtext)) {
+                if ((current.indexOf(i) === -1 && i === +newtext)
+                    || (current.indexOf(i) !== -1 && i !== +newtext)) {
                     text += i;
                 }
             }
@@ -168,7 +186,7 @@ function set_cell(x, y, mode, newtext)
         m.corner.forEach(t => { t.text = text[i++] || ""; });
         m.side.forEach(t => { t.text = text[i++] || ""; });
     }
-    else if (mode == "color") {
+    else if (mode === "color") {
         m.r_color.options.fill = colors[newtext - 1];
     }
     undo_entry.normal = m.normal.text;
@@ -176,37 +194,37 @@ function set_cell(x, y, mode, newtext)
 }
 
 function keyup(event) {
-    if (event.key == "Shift") {
+    if (event.key === "Shift") {
         shift = false;
     }
 }
 
 function keydown(event) {
     let newtext;
-    if (event.key == "Shift") {
+    if (event.key === "Shift") {
         shift = true;
     }
-    else if (event.key == "Delete" || event.key == "Backspace") {
+    else if (event.key === "Delete" || event.key === "Backspace") {
         newtext = "";
         event.preventDefault();
     }
-    else if (event.key == "d" || event.key == "D") {
+    else if (event.key === "d" || event.key === "D") {
         let rem = [];
         stuff.forEach((s, i) => {
-            if (s.type == type_thermo) {
-                if (cursor[0] == s.start[0] && cursor[1] == s.start[1]) {
+            if (s.type === type_thermo) {
+                if (cursor[0] === s.start[0] && cursor[1] === s.start[1]) {
                     delete_thermo(cursor);
                     rem.push(i);
                 }
             }
-            if (s.type == type_cage) {
-                if (s.cells.find(c => c[0] == cursor[0] && c[1] == cursor[1])) {
+            if (s.type === type_cage) {
+                if (s.cells.find(c => c[0] === cursor[0] && c[1] === cursor[1])) {
                     delete_cage(s.cells);
                     rem.push(i);
                 }
             }
-            if (s.type == type_edge_cage) {
-                if (s.cells.find(c => c[0] == cursor[0] && c[1] == cursor[1])) {
+            if (s.type === type_edge_cage) {
+                if (s.cells.find(c => c[0] === cursor[0] && c[1] === cursor[1])) {
                     delete_edge_cage(s.cells);
                     rem.push(i);
                 }
@@ -229,13 +247,13 @@ function keydown(event) {
             });
         }
 
-        if (event.key == "ArrowUp" && cursor[1] > 0)
+        if (event.key === "ArrowUp" && cursor[1] > 0)
             cursor[1] -= 1;
-        if (event.key == "ArrowDown" && cursor[1] < grid_h - 1)
+        if (event.key === "ArrowDown" && cursor[1] < grid_h - 1)
             cursor[1] += 1;
-        if (event.key == "ArrowLeft" && cursor[0] > 0)
+        if (event.key === "ArrowLeft" && cursor[0] > 0)
             cursor[0] -= 1;
-        if (event.key == "ArrowRight" && cursor[0] < grid_w - 1)
+        if (event.key === "ArrowRight" && cursor[0] < grid_w - 1)
             cursor[0] += 1;
         mark(cursor[0], cursor[1]);
         scene.render();
@@ -247,7 +265,7 @@ function keydown(event) {
 
     let count = 0;
     for (let x = 0; x < grid_w; ++x) {
-        for (let y = 0; y < grid_h; ++y) {
+      for (let y = 0; y < grid_h; ++y) {
             let m = get(x, y);
             if (m.mark) {
                 set_cell(x, y, current_mode, newtext);
@@ -276,7 +294,7 @@ function mark(x, y) {
 function inner_hover(x, y) {
     if (!drag) return;
 
-    if (current_mode == "thermo") {
+    if (current_mode === "thermo") {
         if (thermo.objs)
             thermo.objs.forEach(e => e.parent.remove(e));
         thermo.points.push([x, y]);
@@ -288,30 +306,27 @@ function inner_hover(x, y) {
 function move(event, x, y) {
     if (!drag) return;
 
-    if (current_mode == "edge") {
+    if (current_mode === "edge") {
         let m = get(x, y);
         let xp = event.position.x - outer.position.x - m.pos[0];
         let yp = event.position.y - outer.position.y - m.pos[1];
         if ((xp < cell_size * 0.4 || xp > cell_size * 0.6) && yp > cell_size * 0.4 && yp < cell_size * 0.6) {
-            console.log('add right', xp, yp);
             if (xp < cell_size * 0.4)
                 m = get(x - 1, y);
             let edge = new Line(
                 [cell_size, 0], [[0, cell_size]],
                 {fill: null, strokeWidth: 3, stroke: "black"});
             m.edge_right.add(edge);
-            m.edge_right_show = true;
             scene.render();
         }
-        else if ((yp < cell_size * 0.4 || yp > cell_size * 0.6) && xp > cell_size * 0.4 && xp < cell_size * 0.6) {
-            console.log('add bottom', xp, yp);
+        else if ((yp < cell_size * 0.4 || yp > cell_size * 0.6)
+                && xp > cell_size * 0.4 && xp < cell_size * 0.6) {
             if (yp < cell_size * 0.4)
                 m = get(x, y - 1);
             let edge = new Line(
                 [0, cell_size], [[cell_size, 0]],
                 {fill: null, strokeWidth: 3, stroke: "black"});
             m.edge_bottom.add(edge);
-            m.edge_bottom_show = true;
             scene.render();
         }
     }
@@ -320,12 +335,12 @@ function move(event, x, y) {
 function hover(x, y) {
     if (!drag) return;
 
-    if (current_mode == "thermo" || current_mode == "edge") {
-    } else if (current_mode == "edge_cage") {
+    if (current_mode === "thermo" || current_mode === "edge") {
+    } else if (current_mode === "edge_cage") {
         delete_edge_cage(edge_cage.cells);
         edge_cage.cells.push([x, y]);
         draw_edge_cage(edge_cage.cells);
-    } else if (current_mode == "cage") {
+    } else if (current_mode === "cage") {
         if (cage.lines)
             cage.lines.forEach(l => l.parent.remove(l));
         cage.cells.push([x, y]);
@@ -361,19 +376,19 @@ function mousedown(event, x, y) {
     cursor = [x, y];
     drag = true;
 
-    if (current_mode == "thermo") {
+    if (current_mode === "thermo") {
         thermo = {start: [x, y], points: []};
         thermo.objs = draw_thermo(thermo.start, thermo.points);
     }
-    else if (current_mode == "cage") {
+    else if (current_mode === "cage") {
         cage = {cells: [x, y]};
         cage.lines = draw_cage(cage.cells);
     }
-    else if (current_mode == "edge_cage") {
+    else if (current_mode === "edge_cage") {
         edge_cage = {cells: [x, y]};
         draw_edge_cage(edge_cage.cells);
     }
-    else if (current_mode == "edge") {
+    else if (current_mode === "edge") {
     }
     else {
         mark(x, y);
@@ -387,7 +402,7 @@ function delete_thermo(pos)
     let start = center_px(pos);
     let remove = [];
     underlay.children.forEach(e => {
-        if (e.position.x == start[0] && e.position.y == start[1])
+        if (e.position.x === start[0] && e.position.y === start[1])
             remove.push(e);
     });
     underlay.remove(...remove);
@@ -422,24 +437,22 @@ function draw_thermo(start, points) {
 
 function mouseup() {
     drag = false;
-    if (current_mode == "thermo" && thermo) {
+    if (current_mode === "thermo" && thermo) {
         stuff.push({type: type_thermo, start: thermo.start, points: thermo.points});
         thermo = null;
     }
-    else if (current_mode == "cage" && cage) {
+    else if (current_mode === "cage" && cage) {
         stuff.push({type: type_cage, cells: cage.cells});
         cage = null;
     }
-    else if (current_mode == "edge_cage" && edge_cage) {
+    else if (current_mode === "edge_cage" && edge_cage) {
         stuff.push({type: type_edge_cage, cells: edge_cage.cells});
         edge_cage = null;
     }
 }
 
-function set_mode(mode)
-{
+export function DrawSetMode(mode) {
     current_mode = mode;
-    scene.render();
 }
 
 class CageLine extends Line {
@@ -461,7 +474,7 @@ function each_cell(f) {
 function delete_cage(cells)
 {
     let get_cage = (x, y) => {
-        return cells.find(e => e[0] == x && e[1] == y);
+        return cells.find(e => e[0] === x && e[1] === y);
     };
 
     each_cell(m => {
@@ -473,7 +486,7 @@ function delete_cage(cells)
 function draw_cage(cells)
 {
     let get_cage = (x, y) => {
-        return cells.find(e => e[0] == x && e[1] == y);
+        return cells.find(e => e[0] === x && e[1] === y);
     };
 
     let lines = [];
@@ -557,7 +570,7 @@ function draw_cage(cells)
 function delete_edge_cage(cells)
 {
     let get_cage = (x, y) => {
-        return cells.find(e => e[0] == x && e[1] == y);
+        return cells.find(e => e[0] === x && e[1] === y);
     };
 
     each_cell(m => {
@@ -569,7 +582,7 @@ function delete_edge_cage(cells)
 function draw_edge_cage(cells)
 {
     let get_cage = (x, y) => {
-        return cells.find(e => e[0] == x && e[1] == y);
+        return cells.find(e => e[0] === x && e[1] === y);
     };
 
     each_cell(m => {
@@ -627,22 +640,22 @@ function load(base64)
     });
 
     data.cells.forEach(c => {
-        if (c[2] == lock_normal) {
+        if (c[2] === lock_normal) {
             set_cell(c[0], c[1], "set", c[3]);
         }
-        else if (c[2] == lock_corner) {
+        else if (c[2] === lock_corner) {
             set_cell(c[0], c[1], "set_corner", c[3]);
         }
     });
     data.stuff.forEach(s => {
         stuff.push(s);
-        if (s.type == type_thermo) {
+        if (s.type === type_thermo) {
             draw_thermo(s.start, s.points);
         }
-        else if (s.type == type_cage) {
+        else if (s.type === type_cage) {
             draw_cage(s.cells);
         }
-        else if (s.type == type_edge_cage) {
+        else if (s.type === type_edge_cage) {
             draw_edge_cage(s.cells);
         }
     });
@@ -650,7 +663,7 @@ function load(base64)
     scene.render();
 }
 
-function generate_url()
+export function DrawGenerateUrl()
 {
     let out = {
         gw: grid_w,
@@ -660,37 +673,34 @@ function generate_url()
     };
 
     each_cell(m => {
-        if (m.lock_type == lock_normal) {
+        if (m.lock_type === lock_normal) {
             out.cells.push([m.x, m.y, m.lock_type, m.normal.text]);
         }
-        if (m.lock_type == lock_corner) {
+        if (m.lock_type === lock_corner) {
             out.cells.push([m.x, m.y, m.lock_type, m.cage_corner.text]);
         }
     });
 
-    console.log(out.stuff);
-
     let coded = msgpack.encode(out);
     let packed = pako.deflate(coded);
     let base64 = btoa(String.fromCharCode(...packed));
-    let uri = window.location.origin + "/?p=" + encodeURIComponent(base64);
-    alert(uri);
+    return window.location.origin + "/?p=" + encodeURIComponent(base64);
 }
 
-function undo() {
-    if (undo_stack.length == 0)
+export function DrawUndo() {
+    if (undo_stack.length === 0)
         return;
     let u = undo_stack.pop();
     let count = 0;
-    if (u.mode == "group") {
+    if (u.mode === "group") {
         count = u.count;
         u = undo_stack.pop();
     }
     do {
-        if (u.mode == "normal") {
+        if (u.mode === "normal") {
             set_cell(u.x, u.y, u.mode, u.old_normal);
         }
-        else if (u.mode == "center" || u.mode == "corner") {
+        else if (u.mode === "center" || u.mode === "corner") {
             set_cell(u.x, u.y, u.mode, u.newtext);
         }
         undo_stack.pop();
@@ -702,26 +712,24 @@ function undo() {
     scene.render();
 }
 
-function add_grid() {
-    let box_w = grid_w - grid_left;
-    let box_h = grid_h - grid_top;
+export function DrawAddGrid() {
+    let box_w = grid_w - grid_left - grid_right;
+    let box_h = grid_h - grid_top - grid_bottom;
     for (let x = 0; x < box_w; ++x) {
         for (let y = 0; y < box_h; ++y) {
-            if (x % 3 == 0) {
+            if (x % 3 === 0) {
                 let edge = new Line(
                     [0, 0], [[0, cell_size]],
                     {fill: null, strokeWidth: 4, stroke: "black"});
                 let m = get(x + grid_left, y + grid_top);
                 m.edge_right.add(edge);
-                m.edge_right_show = true;
             }
-            if (y % 3 == 0) {
+            if (y % 3 === 0) {
                 let edge = new Line(
                     [0, 0], [[cell_size, 0]],
                     {fill: null, strokeWidth: 4, stroke: "black"});
                 let m = get(x + grid_left, y + grid_top);
                 m.edge_bottom.add(edge);
-                m.edge_bottom_show = true;
             }
         }
     }
@@ -738,16 +746,28 @@ function set_color(c) {
     scene.render();
 }
 
-function render(code) {
-    scene = new Scene();
+export function DrawRender(code, wrapper, cellSize, size, margins) {
+    if (scene == null) {
+      scene = new Scene(wrapper);
+      scene.on("keyup", (event) => keyup(event));
+      scene.on("mouseup", () => mouseup());
+    }
+    else {
+      scene.empty();
+      reset();
+    }
 
-    scene.on("keyup", (event) => keyup(event));
-    scene.on("mouseup", () => mouseup());
+    cell_size = cellSize;
+    grid_left = margins.left;
+    grid_right = margins.right;
+    grid_top = margins.top;
+    grid_bottom = margins.bottom;
+    grid_w = grid_left + size.width + grid_right;
+    grid_h = grid_top + size.height + grid_bottom;
 
     const outer_w = cell_size * grid_w;
-    const outer_h = cell_size * grid_h;
     const outer_x = (scene.size.x - outer_w) / 2;
-    const outer_y = (scene.size.y - outer_h) / 2;
+    const outer_y = 20;
     const options = {
         fill: "rgba(255, 255, 255, 0)",
         stroke: "black",
@@ -775,7 +795,8 @@ function render(code) {
         for (let y = 0; y < grid_h; ++y) {
             let xp = x * cell_size;
             let yp = y * cell_size;
-            let main_grid = (x >= grid_left && y >= grid_top);
+            let main_grid = (x >= grid_left && y >= grid_top
+              && x < (grid_w - grid_right) && y < (grid_h - grid_bottom));
             let cont = new Container([xp, yp]);
             options.strokeWidth = main_grid ? 1 : 0;
             let r = new Rectangle([0, 0], cell_size, cell_size, options);
@@ -812,9 +833,9 @@ function render(code) {
                     p = p.slice(0);
                     p[0] -= cell_size * 0.025;
                     p[1] -= cell_size * 0.025;
-                    if (i == 2 || i == 3) p[1] -= cell_size * 0.15;
-                    if (i == 1 || i == 2) p[0] -= cell_size * 0.1;
-                    if (i == 0)
+                    if (i === 2 || i === 3) p[1] -= cell_size * 0.15;
+                    if (i === 1 || i === 2) p[0] -= cell_size * 0.1;
+                    if (i === 0)
                         cage_corner.push(new Text2(p, "", cageCornerTextOptions));
                     corner.push(new Text(p, "", cornerTextOptions));
                 });
@@ -825,10 +846,10 @@ function render(code) {
                     p = p.slice(0);
                     p[0] -= cell_size * 0.02;
                     p[1] -= cell_size * 0.02;
-                    if (i == 2) p[1] -= cell_size * 0.15;
-                    if (i == 1 || i == 3) p[1] -= cell_size * 0.05;
-                    if (i == 0 || i == 2) p[0] -= cell_size * 0.02;
-                    if (i == 1) p[0] -= cell_size * 0.1;
+                    if (i === 2) p[1] -= cell_size * 0.15;
+                    if (i === 1 || i === 3) p[1] -= cell_size * 0.05;
+                    if (i === 0 || i === 2) p[0] -= cell_size * 0.02;
+                    if (i === 1) p[0] -= cell_size * 0.1;
                     side.push(new Text(p, "", cornerTextOptions));
                 });
             }
@@ -869,15 +890,15 @@ function render(code) {
         }
     }
 
-    let frame_w = grid_w - grid_left;
-    let frame_h = grid_h - grid_top;
+    let frame_w = grid_w - grid_left - grid_right;
+    let frame_h = grid_h - grid_top - grid_bottom;
     let frame = new Rectangle(
         [grid_left * cell_size, grid_top * cell_size],
         frame_w * cell_size, frame_h * cell_size,
         {strokeWidth: 4, stroke: "black", fill: null});
     outer.add(frame);
 
-    let color_buttons = new Container([outer_x - 150, outer_y + grid_h * cell_size]);
+    let color_buttons = new Container([outer_x, outer_y + cell_size * grid_h + 50]);
     scene.add(color_buttons);
     let c = 0;
     let c_buttons = [];
@@ -894,56 +915,12 @@ function render(code) {
         }
     }
     c_buttons.reverse().forEach(e => color_buttons.add(e));
-
-    let buttons = new Container([outer_x + outer_w + 50, outer_y]);
-    scene.add(buttons);
-    const button_desc = [
-        ["Normal", () => set_mode("normal")],
-        ["Center", () => set_mode("center")],
-        ["Corner", () => set_mode("corner")],
-        ["Undo", () => undo()],
-    ];
-    let set_buttons = new Container([outer_x - 150, outer_y]);
-    scene.add(set_buttons);
-    const set_button_desc = [
-        ["Set", () => set_mode("set")],
-        ["Set corner", () => set_mode("set_corner")],
-        ["Add grid", () => add_grid()],
-        ["Edge cage", () => set_mode("edge_cage")],
-        ["Edges", () => set_mode("edge")],
-        ["Thermo", () => set_mode("thermo")],
-        ["Cage", () => set_mode("cage")],
-        ["Color", () => set_mode("color")],
-        ["URL", () => generate_url()],
-    ];
-    let ypos = 0;
-    let bb = []
-    button_desc.forEach(e => {
-        let b = new Button([0, ypos], {fontSize: 32, value: e[0]});
-        ypos += 64;
-        b.on("click", e[1]);
-        bb.push(b);
-    });
-    bb.reverse().forEach(e => buttons.add(e));
-    ypos = 0;
-    bb = []
-    set_button_desc.forEach(e => {
-        let b = new Button([0, ypos], {fontSize: 32, value: e[0]});
-        ypos += 64;
-        b.on("click", e[1]);
-        bb.push(b);
-    });
-    bb.reverse().forEach(e => set_buttons.add(e));
-
     scene.render();
 
     if (code)
         load(code);
+
+    return null;
 }
 
-const query = window.location.search;
-const url_params = new URLSearchParams(query);
-const code = url_params.get("p");
-
 window.addEventListener("keydown", (event) => keydown(event));
-window.addEventListener("load", () => render(code));
