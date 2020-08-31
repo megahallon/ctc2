@@ -38,7 +38,8 @@ const colors = [
     "rgba(52, 187, 230, 0.5)"];
 
 let current_color = colors[1];
-let current_mode = "normal";
+let current_mode = "set";
+let current_style = null;
 let scene = null;
 let matrix = [];
 let stuff = [];
@@ -203,6 +204,7 @@ function keydown(event) {
     let newtext;
     if (event.key === "Shift") {
         shift = true;
+        return;
     }
     else if (event.key === "Delete" || event.key === "Backspace") {
         newtext = "";
@@ -423,16 +425,21 @@ function draw_thermo(start, points) {
     color.blue = color.blue * color.alpha + (1 - color.alpha) * 1;
     color.alpha = 1;
     let start_px = center_px(start);
-    let bulb = new Circle(start_px, cell_size * 0.4, {fill: color});
+    let bulb = null;
+    if (current_style.thermoStyle === "bulb")
+      bulb = new Circle(start_px, cell_size * 0.4, {fill: color});
     points = points.map(p => {
         let px = center_px(p);
         return {x: px[0] - start_px[0], y: px[1] - start_px[1]};
     });
     let line = new Line(start_px, points,
         {stroke: color, strokeWidth: cell_size * 0.3, join: Line.joins.miter});
-    underlay.add(bulb, line);
+    let objs = [line];
+    if (bulb)
+      objs.push(bulb);
+    underlay.add(...objs);
     scene.render();
-    return [bulb, line];
+    return objs;
 }
 
 function mouseup() {
@@ -451,8 +458,15 @@ function mouseup() {
     }
 }
 
-export function DrawSetMode(mode) {
-    current_mode = mode;
+export function DrawSetMode(state) {
+    current_mode = state.mode;
+    current_style = state;
+    if (state.mode == "cage" && state.cageStyle == "edge")
+      current_mode = "edge_cage"
+    if (state.mode == "number" && state.numberStyle == "normal")
+      current_mode = "set"
+    if (state.mode == "number" && state.numberStyle == "corner")
+      current_mode = "set_corner"
 }
 
 class CageLine extends Line {
@@ -747,16 +761,6 @@ function set_color(c) {
 }
 
 export function DrawRender(code, wrapper, cellSize, size, margins) {
-    if (scene == null) {
-      scene = new Scene(wrapper);
-      scene.on("keyup", (event) => keyup(event));
-      scene.on("mouseup", () => mouseup());
-    }
-    else {
-      scene.empty();
-      reset();
-    }
-
     cell_size = cellSize;
     grid_left = margins.left;
     grid_right = margins.right;
@@ -764,6 +768,15 @@ export function DrawRender(code, wrapper, cellSize, size, margins) {
     grid_bottom = margins.bottom;
     grid_w = grid_left + size.width + grid_right;
     grid_h = grid_top + size.height + grid_bottom;
+
+    let wrapper_clone = wrapper.cloneNode(false);
+    wrapper.parentNode.replaceChild(wrapper_clone, wrapper);
+    wrapper_clone.style.width = (cell_size * grid_w + 20) + "px";
+    wrapper_clone.style.height = (cell_size * grid_h + 250) + "px";
+    scene = new Scene(wrapper_clone);
+    scene.on("keyup", (event) => keyup(event));
+    scene.on("mouseup", () => mouseup());
+    reset();
 
     const outer_w = cell_size * grid_w;
     const outer_x = (scene.size.x - outer_w) / 2;
