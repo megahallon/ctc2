@@ -1,20 +1,20 @@
 import {
     Scene, Text, Rectangle, Component,
-    Color, Container, Line, Circle, Button
+    Color, Container, Line, Circle
 } from "pencil.js";
 
 import pako from "pako";
 import msgpack from "msgpack-lite";
 
-let cell_size = 64;
-let grid_w = 9;
-let grid_h = 9;
+let cell_size = 0;
+let grid_w = 0;
+let grid_h = 0;
 let grid_left = 0;
 let grid_top = 0;
 let grid_bottom = 0;
 let grid_right = 0;
-const corner_offset = cell_size * 0.08;
-const hover_offset = cell_size * 0.2;
+let corner_offset = 0;
+let hover_offset = 0;
 
 const sol_text_color = "rgb(29, 106, 229)";
 const mark_color = "rgba(247, 208, 56, 0.5)";
@@ -198,6 +198,27 @@ function keyup(event) {
     if (event.key === "Shift") {
         shift = false;
     }
+}
+
+export function DrawSetNumber(number) {
+  let count = 0;
+  each_cell(m => {
+    if (m.mark) {
+      set_cell(m.x, m.y, current_mode, number);
+      ++count;
+    }
+  });
+  undo_stack.push({mode: 'group', count: count});
+  scene.render();
+}
+
+export function DrawSetColor(color_index) {
+  current_color = colors[color_index];
+  each_cell(m => {
+    if (m.mark)
+      m.r_color.options.fill = current_color;
+  });
+  scene.render();
 }
 
 function keydown(event) {
@@ -461,11 +482,11 @@ function mouseup() {
 export function DrawSetMode(state) {
     current_mode = state.mode;
     current_style = state;
-    if (state.mode == "cage" && state.cageStyle == "edge")
+    if (state.mode === "cage" && state.cageStyle === "edge")
       current_mode = "edge_cage"
-    if (state.mode == "number" && state.numberStyle == "normal")
+    if (state.mode === "number" && state.numberStyle === "normal")
       current_mode = "set"
-    if (state.mode == "number" && state.numberStyle == "corner")
+    if (state.mode === "number" && state.numberStyle === "corner")
       current_mode = "set_corner"
 }
 
@@ -711,7 +732,7 @@ export function DrawUndo() {
         u = undo_stack.pop();
     }
     do {
-        if (u.mode === "normal") {
+        if (u.mode === "normal" || u.mode === "set") {
             set_cell(u.x, u.y, u.mode, u.old_normal);
         }
         else if (u.mode === "center" || u.mode === "corner") {
@@ -750,16 +771,6 @@ export function DrawAddGrid() {
     scene.render();
 }
 
-function set_color(c) {
-    current_color = colors[c];
-
-    each_cell(m => {
-        if (m.mark)
-            m.r_color.options.fill = current_color;
-    });
-    scene.render();
-}
-
 export function DrawRender(code, wrapper, cellSize, size, margins) {
     cell_size = cellSize;
     grid_left = margins.left;
@@ -768,6 +779,8 @@ export function DrawRender(code, wrapper, cellSize, size, margins) {
     grid_bottom = margins.bottom;
     grid_w = grid_left + size.width + grid_right;
     grid_h = grid_top + size.height + grid_bottom;
+    corner_offset = cell_size * 0.08;
+    hover_offset = cell_size * 0.2;
 
     let wrapper_clone = wrapper.cloneNode(false);
     wrapper.parentNode.replaceChild(wrapper_clone, wrapper);
@@ -889,16 +902,19 @@ export function DrawRender(code, wrapper, cellSize, size, margins) {
             cont.on("mousemove", (event) => move(event, x, y));
             r_hover.on("hover", () => inner_hover(x, y));
             matrix[y][x] = {
-                x: x, y: y, pos: [xp, yp], cont: cont, rect: r, normal: normal, center: center,
+                x: x, y: y, pos: [xp, yp], cont: cont, rect: r,
+                normal: normal, center: center,
                 r_corner_pos: r_corner,
                 corner: corner, side: side,
-                corner_pos: corner_pos, center_pos: center_pos, side_pos: side_pos,
+                corner_pos: corner_pos, center_pos: center_pos,
+                side_pos: side_pos,
                 corner_ext_pos: corner_ext_pos,
                 cage_corner: cage_corner[0],
                 edge_cage: edge_cage,
                 edge_right: edge_right,
                 edge_bottom: edge_bottom,
-                r_cage: r_cage, r_color: r_color, main_grid: main_grid};
+                r_cage: r_cage, r_color: r_color, main_grid: main_grid
+            };
             outer.add(cont);
         }
     }
@@ -911,23 +927,6 @@ export function DrawRender(code, wrapper, cellSize, size, margins) {
         {strokeWidth: 4, stroke: "black", fill: null});
     outer.add(frame);
 
-    let color_buttons = new Container([outer_x, outer_y + cell_size * grid_h + 50]);
-    scene.add(color_buttons);
-    let c = 0;
-    let c_buttons = [];
-    for (let y = 0; y < 3; ++y) {
-        for (let x = 0; x < 3; ++x) {
-            let _c = c + 0;
-            let b = new Button([x * 48, y * 48], {fontSize: 32, value: '  '});
-            let r = new Rectangle([6, 6], 32, 32, {fill: colors[c],
-                cursor: Component.cursors.pointer});
-            b.add(r);
-            r.on("click", () => set_color(_c));
-            c_buttons.push(b);
-            ++c;
-        }
-    }
-    c_buttons.reverse().forEach(e => color_buttons.add(e));
     scene.render();
 
     if (code)
