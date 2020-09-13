@@ -1,0 +1,38 @@
+Set features:
+
+width, height
+margins
+3x3 grid
+description
+
+symbols
+cells: [x, y, symbol, style, color]
+symbol is numbers, letters, circles etc, special case: color fill
+style (optional) normal, small center, corners, boundary
+color (optional)
+
+any number of:
+base: type, cells, style, color
+
+type: cage
+cells: list x,y of cells
+style: edge, dashed inset
+color: optional
+objects: several lines
+
+type: middle line
+cells: list x,y of cells
+style: thermo (fat,thin), "no bulb thermo", thin line
+color: optional
+objects: single line + possible bulb
+
+Draw:
+overlay for solving
+underlay for setting
+
+
+
+future:
+irregular border
+diagonal lines
+single edge lines

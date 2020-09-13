@@ -16,17 +16,16 @@ let grid_right = 0;
 let corner_offset = 0;
 let hover_offset = 0;
 
-const sol_text_color = "rgb(29, 106, 229)";
-const mark_color = "rgba(247, 208, 56, 0.5)";
-
 const type_thermo = 1;
 const type_cage = 2;
-const type_edge_cage = 3;
 
 const lock_normal = 1;
 const lock_corner = 2;
+const lock_color = 3;
 
-const colors = [
+const sol_text_color = "rgb(29, 106, 229)";
+const mark_color = "rgba(247, 208, 56, 0.5)";
+export const DrawColors = [
     "rgba(0, 0, 0, 1)",
     "rgba(207, 207, 207, 0.5)",
     "rgba(255, 255, 255, 0)",
@@ -37,9 +36,10 @@ const colors = [
     "rgba(247, 208, 56, 0.5)",
     "rgba(52, 187, 230, 0.5)"];
 
-let current_color = colors[1];
-let current_mode = "set";
+let current_color = 0;
+let current_mode = "normal";
 let current_style = null;
+let solve_mode = false;
 let scene = null;
 let matrix = [];
 let stuff = [];
@@ -52,6 +52,7 @@ let outer = null;
 let underlay = null;
 let shift = false;
 let cursor = null;
+let description = "";
 
 function reset() {
     matrix = [];
@@ -107,7 +108,7 @@ class Text2 extends Text
     }
 }
 
-function set_cell(x, y, mode, newtext)
+function set_cell(x, y, mode, color, newtext)
 {
     let m = get(x, y);
     let undo_entry = {
@@ -124,13 +125,20 @@ function set_cell(x, y, mode, newtext)
         return;
     }
 
-    if (mode === "normal" || mode === "set") {
+    if (mode === "reset") {
+        m.center.text = "";
+        m.normal.text = "";
+        m.corner.text = "";
+        m.r_color.options.fill = null;
+    }
+    else if (mode === "normal" || mode === "set") {
         if (mode === "normal") {
             m.normal.options.fill = sol_text_color;
         }
         else {
             m.lock_type = (newtext !== "") ? lock_normal : 0;
-            m.normal.options.fill = "black";
+            m.normal.options.fill = DrawColors[color];
+            m.color = color;
         }
         if (!m.main_grid && newtext !== "")
             m.normal.text += newtext;
@@ -143,7 +151,7 @@ function set_cell(x, y, mode, newtext)
         m.corner.forEach(t => { t.text = ""; });
         m.side.forEach(t => { t.text = ""; });
     }
-    else if (mode === "center") {
+    else if (mode === "center" && m.normal.text === "") {
         let current = m.center.text;
         let center = "";
         m.center.options.fill = sol_text_color;
@@ -156,7 +164,6 @@ function set_cell(x, y, mode, newtext)
             }
         }
 
-        m.normal.text = "";
         m.center.text = center;
         const meas = Text.measure(center, m.center.options);
         m.center.position.x = (cell_size - meas.width) / 2;
@@ -169,7 +176,7 @@ function set_cell(x, y, mode, newtext)
             m.cage_corner.text += newtext;
         m.lock_type = (newtext !== "") ? lock_corner : 0;
     }
-    else if (mode === "corner") {
+    else if (mode === "corner" && m.normal.text === "") {
         let current = "";
         m.corner.forEach(t => { current += t.text; });
         m.side.forEach(t => { current += t.text; });
@@ -183,12 +190,17 @@ function set_cell(x, y, mode, newtext)
             }
         }
         let i = 0;
-        m.normal.text = "";
         m.corner.forEach(t => { t.text = text[i++] || ""; });
         m.side.forEach(t => { t.text = text[i++] || ""; });
     }
     else if (mode === "color") {
-        m.r_color.options.fill = colors[newtext - 1];
+        if (solve_mode) {
+            m.r_color.options.fill = DrawColors[color];
+        }
+        else {
+            m.r_color_set.options.fill = DrawColors[color];
+            m.fill = color;
+        }
     }
     undo_entry.normal = m.normal.text;
     undo_stack.push(undo_entry);
@@ -204,7 +216,7 @@ export function DrawSetNumber(number) {
   let count = 0;
   each_cell(m => {
     if (m.mark) {
-      set_cell(m.x, m.y, current_mode, number);
+      set_cell(m.x, m.y, current_mode, current_color, number);
       ++count;
     }
   });
@@ -213,48 +225,29 @@ export function DrawSetNumber(number) {
 }
 
 export function DrawSetColor(color_index) {
-  current_color = colors[color_index];
-  each_cell(m => {
-    if (m.mark)
-      m.r_color.options.fill = current_color;
-  });
-  scene.render();
+  current_color = color_index;
+  if (current_mode === "color") {
+    each_cell(m => {
+      if (m.mark)
+        set_cell(m.x, m.y, "color", color_index, null);
+    });
+    scene.render();
+  }
 }
 
 function keydown(event) {
+    if (event.target.tagName === "TEXTAREA") {
+      return;
+    }
+
     let newtext;
     if (event.key === "Shift") {
         shift = true;
         return;
     }
     else if (event.key === "Delete" || event.key === "Backspace") {
-        newtext = "";
+        DrawDelete();
         event.preventDefault();
-    }
-    else if (event.key === "d" || event.key === "D") {
-        let rem = [];
-        stuff.forEach((s, i) => {
-            if (s.type === type_thermo) {
-                if (cursor[0] === s.start[0] && cursor[1] === s.start[1]) {
-                    delete_thermo(cursor);
-                    rem.push(i);
-                }
-            }
-            if (s.type === type_cage) {
-                if (s.cells.find(c => c[0] === cursor[0] && c[1] === cursor[1])) {
-                    delete_cage(s.cells);
-                    rem.push(i);
-                }
-            }
-            if (s.type === type_edge_cage) {
-                if (s.cells.find(c => c[0] === cursor[0] && c[1] === cursor[1])) {
-                    delete_edge_cage(s.cells);
-                    rem.push(i);
-                }
-            }
-        });
-        rem.forEach(r => stuff.splice(r, 1));
-        scene.render();
         return;
     }
     else if (event.key >= "0" && event.key <= "9") {
@@ -291,7 +284,7 @@ function keydown(event) {
       for (let y = 0; y < grid_h; ++y) {
             let m = get(x, y);
             if (m.mark) {
-                set_cell(x, y, current_mode, newtext);
+                set_cell(x, y, current_mode, current_color, newtext);
                 ++count;
             }
         }
@@ -321,7 +314,7 @@ function inner_hover(x, y) {
         if (thermo.objs)
             thermo.objs.forEach(e => e.parent.remove(e));
         thermo.points.push([x, y]);
-        thermo.objs = draw_thermo(thermo.start, thermo.points);
+        thermo.objs = draw_thermo(thermo.start, thermo.points, current_style, current_color);
         scene.render();
     }
 }
@@ -359,29 +352,17 @@ function hover(x, y) {
     if (!drag) return;
 
     if (current_mode === "thermo" || current_mode === "edge") {
-    } else if (current_mode === "edge_cage") {
+    } else if (current_mode === "cage" && current_style === "edge") {
         delete_edge_cage(edge_cage.cells);
         edge_cage.cells.push([x, y]);
         draw_edge_cage(edge_cage.cells);
-    } else if (current_mode === "cage") {
+    } else if (current_mode === "cage" && current_style === "dash") {
         if (cage.lines)
             cage.lines.forEach(l => l.parent.remove(l));
         cage.cells.push([x, y]);
-        cage.lines = draw_cage(cage.cells);
+        cage.lines = draw_dash_cage(cage.cells);
     } else {
         mark(x, y);
-    }
-    scene.render();
-}
-
-function mousedown_window() {
-    if (!shift) {
-        each_cell(m => {
-            if (m.mark) {
-                m.rect.options.fill = "rgba(255, 255, 255, 0)";
-                m.mark = false;
-            }
-        });
     }
     scene.render();
 }
@@ -400,14 +381,14 @@ function mousedown(event, x, y) {
     drag = true;
 
     if (current_mode === "thermo") {
-        thermo = {start: [x, y], points: []};
-        thermo.objs = draw_thermo(thermo.start, thermo.points);
+        thermo = {start: [x, y], points: [], color: current_color};
+        thermo.objs = draw_thermo(thermo.start, thermo.points, current_style, current_color);
     }
-    else if (current_mode === "cage") {
+    else if (current_mode === "cage" && current_style === "dash") {
         cage = {cells: [x, y]};
-        cage.lines = draw_cage(cage.cells);
+        cage.lines = draw_dash_cage(cage.cells);
     }
-    else if (current_mode === "edge_cage") {
+    else if (current_mode === "cage" && current_style === "edge") {
         edge_cage = {cells: [x, y]};
         draw_edge_cage(edge_cage.cells);
     }
@@ -438,8 +419,8 @@ function center_px(p)
             p[1] * cell_size + cell_size / 2];
 }
 
-function draw_thermo(start, points) {
-    let _color = current_color.match(/[.\d]+/g).map(c => (c > 1) ? c / 255 : +c);
+function draw_thermo(start, points, style, color_index) {
+    let _color = DrawColors[color_index].match(/[.\d]+/g).map(c => (c > 1) ? c / 255 : +c);
     let color = new Color(..._color);
     color.red = color.red * color.alpha + (1 - color.alpha) * 1;
     color.green = color.green * color.alpha + (1 - color.alpha) * 1;
@@ -447,7 +428,7 @@ function draw_thermo(start, points) {
     color.alpha = 1;
     let start_px = center_px(start);
     let bulb = null;
-    if (current_style.thermoStyle === "bulb")
+    if (style === "bulb")
       bulb = new Circle(start_px, cell_size * 0.4, {fill: color});
     points = points.map(p => {
         let px = center_px(p);
@@ -466,31 +447,35 @@ function draw_thermo(start, points) {
 function mouseup() {
     drag = false;
     if (current_mode === "thermo" && thermo) {
-        stuff.push({type: type_thermo, start: thermo.start, points: thermo.points});
+        stuff.push({type: type_thermo, style: current_style,
+                    start: thermo.start, points: thermo.points,
+                    color: current_color});
         thermo = null;
     }
-    else if (current_mode === "cage" && cage) {
-        stuff.push({type: type_cage, cells: cage.cells});
+    else if (current_mode === "cage" && current_style === "dash" && cage) {
+        stuff.push({type: type_cage, style: current_style, cells: cage.cells});
         cage = null;
     }
-    else if (current_mode === "edge_cage" && edge_cage) {
-        stuff.push({type: type_edge_cage, cells: edge_cage.cells});
+    else if (current_mode === "cage" && current_style === "edge" && edge_cage) {
+        stuff.push({type: type_cage, style: current_style, cells: edge_cage.cells});
         edge_cage = null;
     }
 }
 
 export function DrawSetMode(state) {
     current_mode = state.mode;
-    current_style = state;
-    if (state.mode === "cage" && state.cageStyle === "edge")
-      current_mode = "edge_cage"
+    solve_mode = state.solveMode;
+    if (state.mode === "cage")
+        current_style = state.cageStyle;
+    if (state.mode === "thermo")
+        current_style = state.thermoStyle;
     if (state.mode === "number" && state.numberStyle === "normal")
-      current_mode = "set"
+        current_mode = "set"
     if (state.mode === "number" && state.numberStyle === "corner")
-      current_mode = "set_corner"
+        current_mode = "set_corner"
 }
 
-class CageLine extends Line {
+class DashLine extends Line {
     setContext(ctx) {
         super.setContext(ctx);
         ctx.setLineDash([4, 4]);
@@ -506,7 +491,7 @@ function each_cell(f) {
     }
 }
 
-function delete_cage(cells)
+function delete_dash_cage(cells)
 {
     let get_cage = (x, y) => {
         return cells.find(e => e[0] === x && e[1] === y);
@@ -518,7 +503,7 @@ function delete_cage(cells)
     });
 }
 
-function draw_cage(cells)
+function draw_dash_cage(cells)
 {
     let get_cage = (x, y) => {
         return cells.find(e => e[0] === x && e[1] === y);
@@ -539,7 +524,7 @@ function draw_cage(cells)
         let dr = get_cage(x + 1, y + 1);
         let l = [];
         let add_line = (start, end) => {
-            l.push(new CageLine(
+            l.push(new DashLine(
                 start, [[end[0] - start[0], end[1] - start[1]]],
                 {strokeWidth: 2, stroke: "black"}));
         }
@@ -676,50 +661,112 @@ function load(base64)
 
     data.cells.forEach(c => {
         if (c[2] === lock_normal) {
-            set_cell(c[0], c[1], "set", c[3]);
+            set_cell(c[0], c[1], "set", c[4], c[3]);
         }
         else if (c[2] === lock_corner) {
-            set_cell(c[0], c[1], "set_corner", c[3]);
+            set_cell(c[0], c[1], "set_corner", c[4], c[3]);
+        }
+        else if (c[2] === lock_color) {
+            set_cell(c[0], c[1], "color", c[4], c[3]);
         }
     });
     data.stuff.forEach(s => {
         stuff.push(s);
         if (s.type === type_thermo) {
-            draw_thermo(s.start, s.points);
+            draw_thermo(s.start, s.points, s.style, s.color);
         }
-        else if (s.type === type_cage) {
-            draw_cage(s.cells);
+        else if (s.type === type_cage && s.style === "dash") {
+            draw_dash_cage(s.cells);
         }
-        else if (s.type === type_edge_cage) {
+        else if (s.type === type_cage && s.style === "edge") {
             draw_edge_cage(s.cells);
         }
     });
 
     scene.render();
+
+    description = data.desc;
 }
 
-export function DrawGenerateUrl()
+export function DrawGetDescription()
+{
+    return description;
+}
+
+export function DrawGenerateUrl(description)
 {
     let out = {
         gw: grid_w,
         gh: grid_h,
         cells: [],
-        stuff: stuff
+        stuff: stuff,
+        desc: description
     };
 
     each_cell(m => {
-        if (m.lock_type === lock_normal) {
-            out.cells.push([m.x, m.y, m.lock_type, m.normal.text]);
-        }
-        if (m.lock_type === lock_corner) {
-            out.cells.push([m.x, m.y, m.lock_type, m.cage_corner.text]);
-        }
+        if (m.lock_type === lock_normal)
+            out.cells.push([m.x, m.y, m.lock_type, m.normal.text, m.color]);
+        if (m.lock_type === lock_corner)
+            out.cells.push([m.x, m.y, m.lock_type, m.cage_corner.text, m.color]);
+        if (m.fill !== -1)
+            out.cells.push([m.x, m.y, lock_color, null, m.fill]);
     });
 
     let coded = msgpack.encode(out);
     let packed = pako.deflate(coded);
     let base64 = btoa(String.fromCharCode(...packed));
-    return window.location.origin + "/?p=" + encodeURIComponent(base64);
+    return window.location.origin + "/?s=1&p=" + encodeURIComponent(base64);
+}
+
+export function DrawDelete() {
+    if (!solve_mode) {
+        let rem = [];
+        stuff.forEach((s, i) => {
+            if (s.type === type_thermo) {
+                if (cursor[0] === s.start[0] && cursor[1] === s.start[1]) {
+                    delete_thermo(cursor);
+                    rem.push(i);
+                }
+            }
+            if (s.type === type_cage) {
+                if (s.style === "dash") {
+                    if (s.cells.find(c => c[0] === cursor[0] && c[1] === cursor[1])) {
+                        delete_dash_cage(s.cells);
+                        rem.push(i);
+                    }
+                }
+                else if (s.style === "edge") {
+                    if (s.cells.find(c => c[0] === cursor[0] && c[1] === cursor[1])) {
+                        delete_edge_cage(s.cells);
+                        rem.push(i);
+                    }
+                }
+            }
+        });
+        rem.forEach(r => stuff.splice(r, 1));
+    }
+
+    let count = 0;
+    each_cell(m => {
+        if (m.mark) {
+            set_cell(m.x, m.y, current_mode, current_color, "");
+            ++count;
+        }
+    });
+
+    if (count > 1) {
+      undo_stack.push({mode: 'group', count: count});
+    }
+
+    scene.render();
+}
+
+export function DrawReset() {
+    each_cell(m => {
+        set_cell(m.x, m.y, "reset", null, "");
+    });
+    
+    scene.render();
 }
 
 export function DrawUndo() {
@@ -733,10 +780,10 @@ export function DrawUndo() {
     }
     do {
         if (u.mode === "normal" || u.mode === "set") {
-            set_cell(u.x, u.y, u.mode, u.old_normal);
+            set_cell(u.x, u.y, u.mode, current_color, u.old_normal);
         }
         else if (u.mode === "center" || u.mode === "corner") {
-            set_cell(u.x, u.y, u.mode, u.newtext);
+            set_cell(u.x, u.y, u.mode, current_color, u.newtext);
         }
         undo_stack.pop();
         --count;
@@ -817,6 +864,7 @@ export function DrawRender(code, wrapper, cellSize, size, margins) {
     for (let y = 0; y < grid_h; ++y) {
         matrix[y] = [];
     }
+    let cs = cell_size;
     for (let x = 0; x < grid_w; ++x) {
         for (let y = 0; y < grid_h; ++y) {
             let xp = x * cell_size;
@@ -825,42 +873,43 @@ export function DrawRender(code, wrapper, cellSize, size, margins) {
               && x < (grid_w - grid_right) && y < (grid_h - grid_bottom));
             let cont = new Container([xp, yp]);
             options.strokeWidth = main_grid ? 1 : 0;
-            let r = new Rectangle([0, 0], cell_size, cell_size, options);
+            let r = new Rectangle([0, 0], cs, cs, options);
             options.strokeWidth = 0;
-            let edge_right = new Rectangle([0, 0], cell_size, cell_size, options);
-            let edge_bottom = new Rectangle([0, 0], cell_size, cell_size, options);
-            let edge_cage = new Rectangle([0, 0], cell_size, cell_size, options);
-            let r_cage = new Rectangle([0, 0], cell_size, cell_size, options);
-            let r_color = new Rectangle([0, 0], cell_size, cell_size, options);
+            let edge_right = new Rectangle([0, 0], cs, cs, options);
+            let edge_bottom = new Rectangle([0, 0], cs, cs, options);
+            let edge_cage = new Rectangle([0, 0], cs, cs, options);
+            let r_cage = new Rectangle([0, 0], cs, cs, options);
+            let r_color = new Rectangle([0, 0], cs, cs, options);
+            let r_color_set = new Rectangle([0, 0], cs, cs, options);
             let r_hover = new Rectangle(
                 [hover_offset, hover_offset],
-                cell_size - hover_offset * 2,
-                cell_size - hover_offset * 2, options_inner);
-            let normal = new Text([0, cell_size * 0.5], "", textOptions);
-            let center = new Text([0, cell_size * 0.4], "", centerTextOptions);
+                cs - hover_offset * 2,
+                cs - hover_offset * 2, options_inner);
+            let normal = new Text([0, cs * 0.5], "", textOptions);
+            let center = new Text([0, cs * 0.4], "", centerTextOptions);
             let corner_pos = [];
             corner_pos[0] = [corner_offset, corner_offset];
-            corner_pos[1] = [cell_size - corner_offset, corner_offset];
-            corner_pos[2] = [cell_size - corner_offset, cell_size - corner_offset];
-            corner_pos[3] = [corner_offset, cell_size - corner_offset];
+            corner_pos[1] = [cs - corner_offset, corner_offset];
+            corner_pos[2] = [cs - corner_offset, cs - corner_offset];
+            corner_pos[3] = [corner_offset, cs - corner_offset];
             let side_pos = [];
-            side_pos[0] = [cell_size / 2, corner_offset];
-            side_pos[1] = [cell_size - corner_offset, cell_size / 2];
-            side_pos[2] = [cell_size / 2, cell_size - corner_offset];
-            side_pos[3] = [corner_offset, cell_size / 2];
-            let center_pos = [cell_size / 2, cell_size / 2];
+            side_pos[0] = [cs / 2, corner_offset];
+            side_pos[1] = [cs - corner_offset, cs / 2];
+            side_pos[2] = [cs / 2, cs - corner_offset];
+            side_pos[3] = [corner_offset, cs / 2];
+            let center_pos = [cs / 2, cs / 2];
 
             let cage_corner = [];
             let corner = [];
             if (main_grid) {
-                cornerTextOptions.fontSize = cell_size * 0.25;
-                cageCornerTextOptions.fontSize = cell_size * 0.25;
+                cornerTextOptions.fontSize = cs * 0.25;
+                cageCornerTextOptions.fontSize = cs * 0.25;
                 corner_pos.forEach((p, i) => {
                     p = p.slice(0);
-                    p[0] -= cell_size * 0.025;
-                    p[1] -= cell_size * 0.025;
-                    if (i === 2 || i === 3) p[1] -= cell_size * 0.15;
-                    if (i === 1 || i === 2) p[0] -= cell_size * 0.1;
+                    p[0] -= cs * 0.025;
+                    p[1] -= cs * 0.025;
+                    if (i === 2 || i === 3) p[1] -= cs * 0.15;
+                    if (i === 1 || i === 2) p[0] -= cs * 0.1;
                     if (i === 0)
                         cage_corner.push(new Text2(p, "", cageCornerTextOptions));
                     corner.push(new Text(p, "", cornerTextOptions));
@@ -870,31 +919,31 @@ export function DrawRender(code, wrapper, cellSize, size, margins) {
             if (main_grid) {
                 side_pos.forEach((p, i) => {
                     p = p.slice(0);
-                    p[0] -= cell_size * 0.02;
-                    p[1] -= cell_size * 0.02;
-                    if (i === 2) p[1] -= cell_size * 0.15;
-                    if (i === 1 || i === 3) p[1] -= cell_size * 0.05;
-                    if (i === 0 || i === 2) p[0] -= cell_size * 0.02;
-                    if (i === 1) p[0] -= cell_size * 0.1;
+                    p[0] -= cs * 0.02;
+                    p[1] -= cs * 0.02;
+                    if (i === 2) p[1] -= cs * 0.15;
+                    if (i === 1 || i === 3) p[1] -= cs * 0.05;
+                    if (i === 0 || i === 2) p[0] -= cs * 0.02;
+                    if (i === 1) p[0] -= cs * 0.1;
                     side.push(new Text(p, "", cornerTextOptions));
                 });
             }
 
             let r_corner = [];
             r_corner[0] = [0, 0];
-            r_corner[1] = [cell_size, 0];
-            r_corner[2] = [cell_size, cell_size];
-            r_corner[3] = [0, cell_size];
+            r_corner[1] = [cs, 0];
+            r_corner[2] = [cs, cs];
+            r_corner[3] = [0, cs];
             let corner_ext_pos = [];
             corner_ext_pos[0] = [0, corner_offset];
             corner_ext_pos[1] = [corner_offset, 0];
-            corner_ext_pos[2] = [cell_size - corner_offset, 0];
-            corner_ext_pos[3] = [cell_size, corner_offset];
-            corner_ext_pos[4] = [cell_size, cell_size - corner_offset];
-            corner_ext_pos[5] = [cell_size - corner_offset, cell_size];
-            corner_ext_pos[6] = [corner_offset, cell_size];
-            corner_ext_pos[7] = [0, cell_size - corner_offset];
-            cont.add(r_color, r, r_cage, edge_cage,
+            corner_ext_pos[2] = [cs - corner_offset, 0];
+            corner_ext_pos[3] = [cs, corner_offset];
+            corner_ext_pos[4] = [cs, cs - corner_offset];
+            corner_ext_pos[5] = [cs - corner_offset, cs];
+            corner_ext_pos[6] = [corner_offset, cs];
+            corner_ext_pos[7] = [0, cs - corner_offset];
+            cont.add(r_color_set, r_color, r, r_cage, edge_cage,
                      edge_right, edge_bottom, r_hover, normal, center,
                      ...cage_corner, ...corner, ...side);
             cont.on("mousedown", (event) => mousedown(event, x, y));
@@ -903,6 +952,7 @@ export function DrawRender(code, wrapper, cellSize, size, margins) {
             r_hover.on("hover", () => inner_hover(x, y));
             matrix[y][x] = {
                 x: x, y: y, pos: [xp, yp], cont: cont, rect: r,
+                fill: null, color: null,
                 normal: normal, center: center,
                 r_corner_pos: r_corner,
                 corner: corner, side: side,
@@ -913,7 +963,8 @@ export function DrawRender(code, wrapper, cellSize, size, margins) {
                 edge_cage: edge_cage,
                 edge_right: edge_right,
                 edge_bottom: edge_bottom,
-                r_cage: r_cage, r_color: r_color, main_grid: main_grid
+                r_cage: r_cage, r_color_set: r_color_set,
+                r_color: r_color, main_grid: main_grid
             };
             outer.add(cont);
         }
