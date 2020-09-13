@@ -111,8 +111,7 @@ class App extends React.Component {
       height: this.state.height
     }
 
-    DrawRender(code, this.canvasRef.current,
-      this.state.cellSize, size, margins);
+    DrawRender(code, this.canvasRef.current, this.state.cellSize, size, margins);
     this.setState({description: DrawGetDescription()});
 
     DrawSetMode(this.state);
@@ -232,10 +231,12 @@ class App extends React.Component {
       <Box display="flex" flexDirection="row">
         <UrlDialog text={this.state.dialogText} open={this.state.dialogOpen} onClose={() => this.setState({dialogOpen: false})}/>
         {this.state.solveMode && this.state.description !== "" &&
-          <Box margin="30px" padding="10px">
-            <TextField id="asd" label="Description" multiline variant="outlined"
-              InputProps={{readOnly: true}}
-              defaultValue="" value={this.state.description}/>
+          <Box width="250px">
+            <Box margin="10px">
+              <TextField label="Description" multiline variant="outlined"
+                InputProps={{readOnly: true}}
+                value={this.state.description}/>
+            </Box>
           </Box>
         }
         {!this.state.solveMode &&
@@ -290,7 +291,7 @@ class App extends React.Component {
             }
             { this.state.settingsMode === "description" &&
             <Box margin="30px" padding="10px" boxShadow={3}>
-              <TextField id="asd" multiline rows={8}
+              <TextField multiline rows={8}
                 defaultValue="" value={this.state.description} onChange={(e) => this.setState({description: e.target.value})}/>
             </Box>
             }
