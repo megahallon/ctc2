@@ -13,6 +13,9 @@ let grid_left = 0;
 let grid_top = 0;
 let grid_bottom = 0;
 let grid_right = 0;
+let grid_div_width = 0;
+let grid_div_height = 0;
+let grid_style = "normal";
 let corner_offset = 0;
 let hover_offset = 0;
 
@@ -52,7 +55,7 @@ let outer = null;
 let underlay = null;
 let shift = false;
 let cursor = null;
-let description = "";
+let grid_lines = [];
 
 function reset() {
     matrix = [];
@@ -478,7 +481,7 @@ export function DrawSetMode(state) {
 class DashLine extends Line {
     setContext(ctx) {
         super.setContext(ctx);
-        ctx.setLineDash([4, 4]);
+        ctx.setLineDash([this.options.dash, this.options.dash]);
     }
 }
 
@@ -526,7 +529,7 @@ function draw_dash_cage(cells)
         let add_line = (start, end) => {
             l.push(new DashLine(
                 start, [[end[0] - start[0], end[1] - start[1]]],
-                {strokeWidth: 2, stroke: "black"}));
+                {dash: 4, strokeWidth: 2, stroke: "black"}));
         }
         if (!left) {
             let start = m.corner_pos[0];
@@ -644,6 +647,28 @@ function draw_edge_cage(cells)
     scene.render();
 }
 
+function load_size(base64)
+{
+    let pack = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+    let unpack = pako.inflate(pack);
+    let data = msgpack.decode(unpack);
+
+    if (data.version !== 1) {
+        alert("Bad version");
+    }
+
+    cell_size = data.grid[0];
+    grid_w = data.grid[1];
+    grid_h = data.grid[2];
+    grid_left = data.grid[3];
+    grid_right = data.grid[4];
+    grid_top = data.grid[5];
+    grid_bottom = data.grid[6];
+    grid_div_width = data.grid[7];
+    grid_div_height = data.grid[8];
+    grid_style = data.grid[9];
+}
+
 function load(base64)
 {
     let pack = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
@@ -660,14 +685,15 @@ function load(base64)
     });
 
     data.cells.forEach(c => {
-        if (c[2] === lock_normal) {
-            set_cell(c[0], c[1], "set", c[4], c[3]);
+        let [x, y, type, text, color] = c;
+        if (type === lock_normal) {
+            set_cell(x, y, "set", color, text);
         }
-        else if (c[2] === lock_corner) {
-            set_cell(c[0], c[1], "set_corner", c[4], c[3]);
+        else if (type === lock_corner) {
+            set_cell(x, y, "set_corner", color, text);
         }
-        else if (c[2] === lock_color) {
-            set_cell(c[0], c[1], "color", c[4], c[3]);
+        else if (type === lock_color) {
+            set_cell(x, y, "color", color, text);
         }
     });
     data.stuff.forEach(s => {
@@ -684,20 +710,23 @@ function load(base64)
     });
 
     scene.render();
-
-    description = data.desc;
 }
 
-export function DrawGetDescription()
+export function DrawGetDescription(base64)
 {
-    return description;
+    let pack = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+    let unpack = pako.inflate(pack);
+    let data = msgpack.decode(unpack);
+
+    return data.desc;
 }
 
 export function DrawGenerateUrl(description)
 {
     let out = {
-        gw: grid_w,
-        gh: grid_h,
+        version: 1,
+        grid: [cell_size, grid_w, grid_h, grid_left, grid_right, grid_top, grid_bottom,
+               grid_div_width, grid_div_height, grid_style],
         cells: [],
         stuff: stuff,
         desc: description
@@ -765,7 +794,7 @@ export function DrawReset() {
     each_cell(m => {
         set_cell(m.x, m.y, "reset", null, "");
     });
-    
+
     scene.render();
 }
 
@@ -794,38 +823,56 @@ export function DrawUndo() {
     scene.render();
 }
 
-export function DrawAddGrid() {
-    let box_w = grid_w - grid_left - grid_right;
-    let box_h = grid_h - grid_top - grid_bottom;
-    for (let x = 0; x < box_w; ++x) {
-        for (let y = 0; y < box_h; ++y) {
-            if (x % 3 === 0) {
-                let edge = new Line(
-                    [0, 0], [[0, cell_size]],
-                    {fill: null, strokeWidth: 4, stroke: "black"});
-                let m = get(x + grid_left, y + grid_top);
-                m.edge_right.add(edge);
-            }
-            if (y % 3 === 0) {
-                let edge = new Line(
-                    [0, 0], [[cell_size, 0]],
-                    {fill: null, strokeWidth: 4, stroke: "black"});
-                let m = get(x + grid_left, y + grid_top);
-                m.edge_bottom.add(edge);
-            }
-        }
+function add_grid() {
+    let dash = grid_style === "dash" ? 4 : 0;
+
+    let thin = {
+        fill: "rgba(255, 255, 255, 0)",
+        stroke: "black",
+        strokeWidth: 1,
+        dash: dash
+    };
+    let fat = {
+        fill: "rgba(255, 255, 255, 0)",
+        stroke: "black",
+        strokeWidth: 4
+    };
+
+    outer.remove(...grid_lines);
+
+    let frame_w = grid_w - grid_left - grid_right;
+    let frame_h = grid_h - grid_top - grid_bottom;
+
+    grid_lines = [];
+    for (let x = 0; x < frame_w; ++x) {
+        grid_lines.push(new DashLine(
+            [(grid_left + x) * cell_size, grid_top * cell_size], [[0, frame_h * cell_size]],
+            (x % grid_div_width) === 0 ? fat : thin));
     }
-    scene.render();
+    for (let y = 0; y < frame_h; ++y) {
+        grid_lines.push(new DashLine(
+            [grid_left * cell_size, (grid_top + y) * cell_size], [[frame_w * cell_size, 0]],
+            (y % grid_div_height) === 0 ? fat : thin));
+    }
+
+    outer.add(...grid_lines);
 }
 
-export function DrawRender(code, wrapper, cellSize, size, margins) {
-    cell_size = cellSize;
-    grid_left = margins.left;
-    grid_right = margins.right;
-    grid_top = margins.top;
-    grid_bottom = margins.bottom;
-    grid_w = grid_left + size.width + grid_right;
-    grid_h = grid_top + size.height + grid_bottom;
+export function DrawRender(code, wrapper, state) {
+    cell_size = state.cellSize;
+    grid_left = state.left;
+    grid_right = state.right;
+    grid_top = state.top;
+    grid_bottom = state.bottom;
+    grid_w = grid_left + state.width + grid_right;
+    grid_h = grid_top + state.height + grid_bottom;
+    grid_div_width = state.gridDivWidth;
+    grid_div_height = state.gridDivHeight;
+    grid_style = state.dashedGrid ? "dash" : "normal";
+
+    if (code)
+        load_size(code);
+
     corner_offset = cell_size * 0.08;
     hover_offset = cell_size * 0.2;
 
@@ -865,16 +912,17 @@ export function DrawRender(code, wrapper, cellSize, size, margins) {
         matrix[y] = [];
     }
     let cs = cell_size;
+
     for (let x = 0; x < grid_w; ++x) {
         for (let y = 0; y < grid_h; ++y) {
-            let xp = x * cell_size;
-            let yp = y * cell_size;
+            let xp = x * cs;
+            let yp = y * cs;
             let main_grid = (x >= grid_left && y >= grid_top
               && x < (grid_w - grid_right) && y < (grid_h - grid_bottom));
             let cont = new Container([xp, yp]);
-            options.strokeWidth = main_grid ? 1 : 0;
-            let r = new Rectangle([0, 0], cs, cs, options);
+            //options.strokeWidth = main_grid ? 1 : 0;
             options.strokeWidth = 0;
+            let r = new Rectangle([0, 0], cs, cs, options);
             let edge_right = new Rectangle([0, 0], cs, cs, options);
             let edge_bottom = new Rectangle([0, 0], cs, cs, options);
             let edge_cage = new Rectangle([0, 0], cs, cs, options);
@@ -977,6 +1025,8 @@ export function DrawRender(code, wrapper, cellSize, size, margins) {
         frame_w * cell_size, frame_h * cell_size,
         {strokeWidth: 4, stroke: "black", fill: null});
     outer.add(frame);
+
+    add_grid();
 
     scene.render();
 

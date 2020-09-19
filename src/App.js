@@ -1,11 +1,11 @@
 import React from 'react';
 import './App.css';
-import { DrawRender, DrawSetMode, DrawUndo, DrawDelete, DrawAddGrid,
+import { DrawRender, DrawSetMode, DrawUndo, DrawDelete,
          DrawGenerateUrl, DrawSetNumber, DrawSetColor, DrawColors,
          DrawGetDescription, DrawReset } from './draw';
 import { Box, Button, ButtonGroup, Dialog, DialogTitle, DialogContent,
          DialogContentText, DialogActions, Slider, Typography, Select,
-         MenuItem, FormControl, InputLabel, Grid, TextField } from '@material-ui/core';
+         MenuItem, FormControl, InputLabel, Grid, TextField, Switch } from '@material-ui/core';
 import { PlayArrow, Pause, SkipPrevious } from '@material-ui/icons';
 
 const query = window.location.search;
@@ -41,25 +41,21 @@ class App extends React.Component {
     super(props);
     this.canvasRef = React.createRef();
 
-    this.defaultLeft = 0;
-    this.defaultRight = 0;
-    this.defaultTop = 0;
-    this.defaultBottom = 0;
-    this.defaultCellSize = 64;
-    this.defaultWidth = 9;
-    this.defaultHeight = 9;
     this.state = {
       solveMode: solve_mode,
       settingsMode: "size",
       color: 0,
       description: "",
-      cellSize: this.defaultCellSize,
-      width: this.defaultWidth,
-      height: this.defaultHeight,
-      left: this.defaultLeft,
-      right: this.defaultRight,
-      top: this.defaultTop,
-      bottom: this.defaultBottom,
+      cellSize: 64,
+      width: 9,
+      height: 9,
+      left: 0,
+      right: 0,
+      top: 0,
+      bottom: 0,
+      gridDivWidth: 3,
+      gridDivHeight: 3,
+      dashedGrid: false,
       mode: solve_mode ? "normal" : "number",
       numberStyle: "normal",
       cageStyle: "dash",
@@ -100,20 +96,12 @@ class App extends React.Component {
   }
 
   componentDidMount() {
-    let margins = {
-      left: this.state.left,
-      right: this.state.right,
-      top: this.state.top,
-      bottom: this.state.bottom
-    };
-    let size = {
-      width: this.state.width,
-      height: this.state.height
+    let desc = "";
+    if (code) {
+      desc = DrawGetDescription(code);
     }
-
-    DrawRender(code, this.canvasRef.current, this.state.cellSize, size, margins);
-    this.setState({description: DrawGetDescription()});
-
+    this.setState({description: desc}, () =>
+      DrawRender(code, this.canvasRef.current, this.state));
     DrawSetMode(this.state);
 
     document.addEventListener("keydown", this.handleKeyDown);
@@ -141,23 +129,6 @@ class App extends React.Component {
   generateUrl = () => {
     let url = DrawGenerateUrl(this.state.description);
     this.setState({dialogText: url, dialogOpen: true});
-  }
-
-  setGridSize(id, value) {
-    this.setState({[id]: value});
-    let margins = {
-      left: this.state.left,
-      right: this.state.right,
-      top: this.state.top,
-      bottom: this.state.bottom
-    };
-    let size = {
-      width: this.state.width,
-      height: this.state.height
-    }
-    // Can't use ref as element is replaced
-    DrawRender(code, document.getElementById('canvas'),
-      this.state.cellSize, size, margins);
   }
 
   numberStyleBox() {
@@ -211,13 +182,37 @@ class App extends React.Component {
     );
   }
 
-  setLeftMargin = (event, value) => this.setGridSize('left', value);
-  setRightMargin = (event, value) => this.setGridSize('right', value);
-  setTopMargin = (event, value) => this.setGridSize('top', value);
-  setBottomMargin = (event, value) => this.setGridSize('bottom', value);
-  setWidth = (event, value) => this.setGridSize('width', value);
-  setHeight = (event, value) => this.setGridSize('height', value);
-  setCellSize = (event, value) => this.setGridSize('cellSize', value);
+  handleChange = (event, newValue) => {
+    this.setState({[event.target.parentNode.id]: newValue});
+  }
+
+  setGrid = () => {
+    // Can't use ref as element is replaced
+    DrawRender(code, document.getElementById('canvas'), this.state);
+  }
+
+  sizeSlider(type) {
+    let t = {
+      cellSize: {label: "Cell size",min: 32, max: 96, step: 4, marks: true},
+      width: {label: "Width", min: 3, max: 30, step: 1, marks: false},
+      height: {label: "Height", min: 3, max: 30, step: 1, marks: false},
+      gridDivWidth: {label: "Grid divider width", min: 0, max: 10, step: 1, marks: false},
+      gridDivHeight: {label: "Grid divider height", min: 0, max: 10, step: 1, marks: false},
+      left: {label: "Left margin", min: 0, max: 10, step: 1, marks: false},
+      right: {label: "Right margin", min: 0, max: 10, step: 1, marks: false},
+      top: {label: "Top margin", min: 0, max: 10, step: 1, marks: false},
+      bottom: {label: "Bottom margin", min: 0, max: 10, step: 1, marks: false},
+    }[type];
+    return (
+      <Box>
+        <Typography>{t.label}: {this.state[type]}</Typography>
+        <Slider value={this.state[type]}
+          min={t.min} max={t.max} step={t.step} marks={t.marks} id={type}
+          onChange={this.handleChange}
+          onChangeCommitted={this.setGrid}/>
+      </Box>
+    );
+  }
 
   render() {
     let buttons = [
@@ -232,8 +227,16 @@ class App extends React.Component {
         <UrlDialog text={this.state.dialogText} open={this.state.dialogOpen} onClose={() => this.setState({dialogOpen: false})}/>
         {this.state.solveMode && this.state.description !== "" &&
           <Box width="250px">
-            <Box margin="10px">
-              <TextField label="Description" multiline variant="outlined"
+            <Box margin="20px" padding="10px" boxShadow={3}>
+              <Typography align="center" variant="h4">{new Date(this.state.seconds * 1000).toISOString().substr(11, 8)}</Typography>
+              <ButtonGroup fullWidth={true} size="large">
+                <Button onClick={() => this.setState({timeStatus: true})}><PlayArrow/></Button>
+                <Button onClick={() => this.setState({timeStatus: false})}><Pause/></Button>
+                <Button onClick={() => this.setState({seconds: 0, timeStatus: false})}><SkipPrevious/></Button>
+              </ButtonGroup>
+            </Box>
+            <Box margin="20px">
+              <TextField multiline variant="outlined"
                 InputProps={{readOnly: true}}
                 value={this.state.description}/>
             </Box>
@@ -255,44 +258,43 @@ class App extends React.Component {
             <Box margin="30px">
               <ButtonGroup fullWidth={true} size="large" variant="contained" orientation="vertical">
                 <Button onClick={this.generateUrl}>Generate URL</Button>
-                <Button onClick={DrawAddGrid}>Add grid</Button>
               </ButtonGroup>
             </Box>
             <Box margin="30px">
               <Select fullWidth={true} value={this.state.settingsMode} onChange={(event) => this.setState({settingsMode: event.target.value})}>
                 <MenuItem value="size">Size</MenuItem>
+                <MenuItem value="margins">Margins</MenuItem>
+                <MenuItem value="grid">Grid</MenuItem>
                 <MenuItem value="description">Description</MenuItem>
               </Select>
             </Box>
             { this.state.settingsMode === "size" &&
             <Box margin="30px" padding="10px" boxShadow={3}>
-              <Typography>Cell size: {this.state.cellSize}</Typography>
-              <Slider defaultValue={this.defaultCellSize} valueLabelDisplay="auto"
-                min={32} max={96} step={4} marks onChangeCommitted={this.setCellSize}/>
-              <Typography>Width: {this.state.width}</Typography>
-              <Slider defaultValue={this.defaultWidth} valueLabelDisplay="auto"
-                min={3} max={30} onChangeCommitted={this.setWidth}/>
-              <Typography>Height: {this.state.height}</Typography>
-              <Slider defaultValue={this.defaultHeight} valueLabelDisplay="auto"
-                min={3} max={30} onChangeCommitted={this.setHeight}/>
-              <Typography>Left margin: {this.state.left}</Typography>
-              <Slider defaultValue={this.defaultLeft} valueLabelDisplay="auto"
-                min={0} max={10} onChangeCommitted={this.setLeftMargin}/>
-              <Typography>Right margin: {this.state.right}</Typography>
-              <Slider defaultValue={this.defaultRight} valueLabelDisplay="auto"
-                min={0} max={10} onChangeCommitted={this.setRightMargin}/>
-              <Typography>Top margin: {this.state.top}</Typography>
-              <Slider defaultValue={this.defaultTop} valueLabelDisplay="auto"
-                min={0} max={10} onChangeCommitted={this.setTopMargin}/>
-              <Typography>Bottom margin: {this.state.bottom}</Typography>
-              <Slider defaultValue={this.defaultBottom} valueLabelDisplay="auto"
-                min={0} max={10} onChangeCommitted={this.setBottomMargin}/>
+              { this.sizeSlider("cellSize") }
+              { this.sizeSlider("width") }
+              { this.sizeSlider("height") }
+            </Box>
+            }
+            { this.state.settingsMode === "margins" &&
+            <Box margin="30px" padding="10px" boxShadow={3}>
+              { this.sizeSlider("left") }
+              { this.sizeSlider("right") }
+              { this.sizeSlider("top") }
+              { this.sizeSlider("bottom") }
+            </Box>
+            }
+            { this.state.settingsMode === "grid" &&
+            <Box margin="30px" padding="10px" boxShadow={3}>
+              { this.sizeSlider("gridDivWidth") }
+              { this.sizeSlider("gridDivHeight") }
+              <Typography>Dashed</Typography>
+              <Switch checked={this.state.dashedGrid} onChange={(e) => {this.setGrid("dashedGrid", e.target.checked)}}/>
             </Box>
             }
             { this.state.settingsMode === "description" &&
             <Box margin="30px" padding="10px" boxShadow={3}>
               <TextField multiline rows={8}
-                defaultValue="" value={this.state.description} onChange={(e) => this.setState({description: e.target.value})}/>
+                value={this.state.description} onChange={(e) => this.setState({description: e.target.value})}/>
             </Box>
             }
           </Box>
@@ -344,16 +346,6 @@ class App extends React.Component {
             )}
             </Grid>
           </Box>
-          {this.state.solveMode &&
-            <Box margin="30px" padding="10px" boxShadow={3}>
-              <Typography align="center" variant="h4">{new Date(this.state.seconds * 1000).toISOString().substr(11, 8)}</Typography>
-              <ButtonGroup fullWidth={true} size="large">
-                <Button onClick={() => this.setState({timeStatus: true})}><PlayArrow/></Button>
-                <Button onClick={() => this.setState({timeStatus: false})}><Pause/></Button>
-                <Button onClick={() => this.setState({seconds: 0, timeStatus: false})}><SkipPrevious/></Button>
-              </ButtonGroup>
-            </Box>
-          }
         </Box>
       </Box>
     );
