@@ -8,8 +8,8 @@ import msgpack from "msgpack-lite";
 import { isEqual, range } from 'lodash';
 
 let cell_size = 0;
-let grid_w = 0;
-let grid_h = 0;
+let grid_w = null;
+let grid_h = null;
 let grid_left = 0;
 let grid_top = 0;
 let grid_bottom = 0;
@@ -49,9 +49,7 @@ let matrix = [];
 let stuff = [];
 let drag = false;
 let undo_stack = [];
-let thermo = null;
-let cage = null;
-let edge_cage = null;
+let current = null;
 let outer = null;
 let underlay = null;
 let shift = false;
@@ -62,9 +60,7 @@ function reset() {
     matrix = [];
     stuff = [];
     undo_stack = [];
-    thermo = null;
-    cage = null;
-    edge_cage = null;
+    current = null;
     outer = null;
     underlay = null;
     shift = false;
@@ -322,9 +318,9 @@ function inner_hover(x, y) {
     if (!drag) return;
 
     if (current_mode === "thermo") {
-        underlay.remove(...thermo.objs);
-        thermo.cells.push([x, y]);
-        thermo.objs = draw_thermo(thermo.cells, current_style, current_color);
+        underlay.remove(...current.objs);
+        current.cells.push([x, y]);
+        current.objs = draw_thermo(current.cells, current_style, current_color);
         scene.render();
     }
 }
@@ -363,15 +359,15 @@ function hover(x, y) {
 
     if (current_mode === "thermo" || current_mode === "edge") {
     } else if (current_mode === "cage" && current_style === "edge") {
-        if (edge_cage.objs)
-            edge_cage.objs.forEach(l => l.parent.remove(l));
-        edge_cage.cells.push([x, y]);
-        edge_cage.objs = draw_edge_cage(edge_cage.cells);
+        if (current.objs)
+            current.objs.forEach(l => l.parent.remove(l));
+        current.cells.push([x, y]);
+        current.objs = draw_edge_cage(current.cells);
     } else if (current_mode === "cage" && current_style === "dash") {
-        if (cage.objs)
-            cage.objs.forEach(l => l.parent.remove(l));
-        cage.cells.push([x, y]);
-        cage.objs = draw_dash_cage(cage.cells);
+        if (current.objs)
+            current.objs.forEach(l => l.parent.remove(l));
+        current.cells.push([x, y]);
+        current.objs = draw_dash_cage(current.cells);
     } else {
         mark(x, y);
     }
@@ -392,16 +388,16 @@ function mousedown(event, x, y) {
     drag = true;
 
     if (current_mode === "thermo") {
-        thermo = {cells: [[x, y]], color: current_color};
-        thermo.objs = draw_thermo(thermo.cells, current_style, current_color);
+        current = {cells: [[x, y]], color: current_color};
+        current.objs = draw_thermo(current.cells, current_style, current_color);
     }
     else if (current_mode === "cage" && current_style === "dash") {
-        cage = {cells: [x, y]};
-        cage.objs = draw_dash_cage(cage.cells);
+        current = {cells: [x, y]};
+        current.objs = draw_dash_cage(current.cells);
     }
     else if (current_mode === "cage" && current_style === "edge") {
-        edge_cage = {cells: [x, y]};
-        edge_cage.objs = draw_edge_cage(edge_cage.cells);
+        current = {cells: [x, y]};
+        current.objs = draw_edge_cage(current.cells);
     }
     else if (current_mode === "edge") {
     }
@@ -429,14 +425,14 @@ function draw_thermo(points, style, color_index) {
     let arrow = null;
     let strokeWidth = cell_size * 0.3;
     let start_px = center_px(points[0]);
-    points = points.slice(1).map(p => {
+    points = points.map(p => {
         let px = center_px(p);
         return {x: px[0] - start_px[0], y: px[1] - start_px[1]};
     });
     if (style === "bulb")
       bulb = new Circle(start_px, cell_size * 0.4, {fill: color});
     else if (style === "arrow") {
-      strokeWidth = cell_size * 0.05;
+      strokeWidth = cell_size * 0.07;
       bulb = new Circle(start_px, cell_size * 0.4,
           {fill: "white", strokeWidth: strokeWidth, stroke: color});
       if (points.length > 1) {
@@ -448,13 +444,12 @@ function draw_thermo(points, style, color_index) {
         arrow = new Container();
         arrow.position = {x: p1.x + start_px[0], y: p1.y + start_px[1]};
         arrow.options.rotation = 0.5 + (Math.atan2(dy, dx) / (2 * Math.PI));
-        let arrow_line = new Line({x: 0, y: 0},
-            [{x: -cs, y: -cs}, {x: 0, y: 0}, {x: -cs, y: cs}],
+        let arrow_line = new Line({x: -cs, y: -cs}, [{x: cs, y: cs}, {x: 0, y: cs * 2}],
             {stroke: color, strokeWidth: strokeWidth, join: Line.joins.miter});
         arrow.add(arrow_line);
       }
     }
-    let line = new Line(start_px, points,
+    let line = new Line(start_px, points.slice(1),
         {stroke: color, strokeWidth: strokeWidth, join: Line.joins.miter});
     let objs = [];
     if (arrow)
@@ -469,19 +464,15 @@ function draw_thermo(points, style, color_index) {
 
 function mouseup() {
     drag = false;
-    if (current_mode === "thermo" && thermo) {
+    if (current_mode === "thermo" && current) {
         stuff.push({type: type_thermo, style: current_style,
-                    cells: thermo.cells, objs: thermo.objs,
-                    color: current_color});
-        thermo = null;
+          cells: current.cells, objs: current.objs, color: current_color});
+        current = null;
     }
-    else if (current_mode === "cage" && current_style === "dash" && cage) {
-        stuff.push({type: type_cage, style: current_style, objs: cage.objs, cells: cage.cells});
-        cage = null;
-    }
-    else if (current_mode === "cage" && current_style === "edge" && edge_cage) {
-        stuff.push({type: type_cage, style: current_style, objs: edge_cage.objs, cells: edge_cage.cells});
-        edge_cage = null;
+    else if (current_mode === "cage" && current) {
+        stuff.push({type: type_cage, style: current_style,
+          cells: current.cells, objs: current.objs});
+        current = null;
     }
 }
 
@@ -512,6 +503,14 @@ function each_cell(f) {
             f(m);
         }
     }
+}
+
+function draw_cage(cells, style)
+{
+  if (style === "dash")
+    draw_dash_cage(cells);
+  if (style === "edge")
+    draw_edge_cage(cells);
 }
 
 function draw_dash_cage(cells)
@@ -591,7 +590,7 @@ function draw_dash_cage(cells)
             }
             add_line(start, end);
         }
-        l.forEach(e => m.r_cage.add(e));
+        l.forEach(e => m.r.add(e));
         lines = lines.concat(l);
     });
     scene.render();
@@ -639,7 +638,7 @@ function draw_edge_cage(cells)
             let end = m.r_corner_pos[2];
             add_line(start, end);
         }
-        l.forEach(e => m.edge_cage.add(e));
+        l.forEach(e => m.r.add(e));
         lines.push(...l);
     });
     scene.render();
@@ -700,11 +699,8 @@ function load(base64)
         if (s.type === type_thermo) {
             s.objs = draw_thermo(s.cells, s.style, s.color);
         }
-        else if (s.type === type_cage && s.style === "dash") {
-            s.objs = draw_dash_cage(s.cells);
-        }
-        else if (s.type === type_cage && s.style === "edge") {
-            s.objs = draw_edge_cage(s.cells);
+        else if (s.type === type_cage) {
+            s.objs = draw_cage(s.cells, s.style);
         }
         stuff.push(s);
     });
@@ -942,8 +938,6 @@ export function DrawRender(code, wrapper, state) {
             let r = new Rectangle([0, 0], cs, cs, options);
             let edge_right = new Rectangle([0, 0], cs, cs, options);
             let edge_bottom = new Rectangle([0, 0], cs, cs, options);
-            let edge_cage = new Rectangle([0, 0], cs, cs, options);
-            let r_cage = new Rectangle([0, 0], cs, cs, options);
             let r_color = new Rectangle([0, 0], cs, cs, options);
             let r_color_set = new Rectangle([0, 0], cs, cs, options);
             let r_hover = new Rectangle(
@@ -1008,7 +1002,7 @@ export function DrawRender(code, wrapper, state) {
             corner_ext_pos[5] = [cs - corner_offset, cs];
             corner_ext_pos[6] = [corner_offset, cs];
             corner_ext_pos[7] = [0, cs - corner_offset];
-            cont.add(r_color_set, r_color, r, r_cage, edge_cage,
+            cont.add(r_color_set, r_color, r,
                      edge_right, edge_bottom, r_hover, normal, center,
                      ...cage_corner, ...corner, ...side);
             cont.on("mousedown", (event) => mousedown(event, x, y));
@@ -1025,10 +1019,10 @@ export function DrawRender(code, wrapper, state) {
                 side_pos: side_pos,
                 corner_ext_pos: corner_ext_pos,
                 cage_corner: cage_corner[0],
-                edge_cage: edge_cage,
                 edge_right: edge_right,
                 edge_bottom: edge_bottom,
-                r_cage: r_cage, r_color_set: r_color_set,
+                r: r,
+                r_color_set: r_color_set,
                 r_color: r_color, main_grid: main_grid
             };
             outer.add(cont);

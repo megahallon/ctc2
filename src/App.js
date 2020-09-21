@@ -69,18 +69,14 @@ class App extends React.Component {
 
   handleKeyDown = (event) => {
     if (this.state.solveMode) {
-      if (event.key === "q") {
+      if (event.key === "q")
         this.setMode("normal");
-      }
-      if (event.key === "w") {
+      if (event.key === "w")
         this.setMode("center");
-      }
-      if (event.key === "e") {
+      if (event.key === "e")
         this.setMode("corner");
-      }
-      if (event.key === "r") {
+      if (event.key === "r")
         this.setMode("color");
-      }
       if (event.key === " ") {
         let cycle_modes = ["normal", "center", "corner", "color"];
         let i = cycle_modes.indexOf(this.state.mode);
@@ -192,6 +188,11 @@ class App extends React.Component {
     DrawRender(code, document.getElementById('canvas'), this.state);
   }
 
+  setGridState = (state, value) => {
+    // Can't use ref as element is replaced
+    this.setState({[state]: value}, () => DrawRender(code, document.getElementById('canvas'), this.state));
+  }
+
   sizeSlider(type) {
     let t = {
       cellSize: {label: "Cell size",min: 32, max: 96, step: 4, marks: true},
@@ -294,7 +295,7 @@ class App extends React.Component {
               { this.sizeSlider("gridDivWidth") }
               { this.sizeSlider("gridDivHeight") }
               <Typography>Dashed</Typography>
-              <Switch checked={this.state.dashedGrid} onChange={(e) => {this.setGrid("dashedGrid", e.target.checked)}}/>
+              <Switch checked={this.state.dashedGrid} onChange={(e) => {this.setGridState("dashedGrid", e.target.checked)}}/>
             </Box>
             }
             { this.state.settingsMode === "description" &&
