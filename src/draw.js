@@ -5,6 +5,7 @@ import {
 
 import pako from "pako";
 import msgpack from "msgpack-lite";
+import { isEqual, range } from 'lodash';
 
 let cell_size = 0;
 let grid_w = 0;
@@ -287,7 +288,14 @@ function keydown(event) {
       for (let y = 0; y < grid_h; ++y) {
             let m = get(x, y);
             if (m.mark) {
-                set_cell(x, y, current_mode, current_color, newtext);
+                if (current_mode === "color") {
+                    let color = +newtext - 1;
+                    if (color >= 0 && color <= 9) {
+                        set_cell(x, y, current_mode, color, null);
+                    }
+                }
+                else
+                    set_cell(x, y, current_mode, current_color, newtext);
                 ++count;
             }
         }
@@ -314,10 +322,9 @@ function inner_hover(x, y) {
     if (!drag) return;
 
     if (current_mode === "thermo") {
-        if (thermo.objs)
-            thermo.objs.forEach(e => e.parent.remove(e));
-        thermo.points.push([x, y]);
-        thermo.objs = draw_thermo(thermo.start, thermo.points, current_style, current_color);
+        underlay.remove(...thermo.objs);
+        thermo.cells.push([x, y]);
+        thermo.objs = draw_thermo(thermo.cells, current_style, current_color);
         scene.render();
     }
 }
@@ -356,14 +363,15 @@ function hover(x, y) {
 
     if (current_mode === "thermo" || current_mode === "edge") {
     } else if (current_mode === "cage" && current_style === "edge") {
-        delete_edge_cage(edge_cage.cells);
+        if (edge_cage.objs)
+            edge_cage.objs.forEach(l => l.parent.remove(l));
         edge_cage.cells.push([x, y]);
-        draw_edge_cage(edge_cage.cells);
+        edge_cage.objs = draw_edge_cage(edge_cage.cells);
     } else if (current_mode === "cage" && current_style === "dash") {
-        if (cage.lines)
-            cage.lines.forEach(l => l.parent.remove(l));
+        if (cage.objs)
+            cage.objs.forEach(l => l.parent.remove(l));
         cage.cells.push([x, y]);
-        cage.lines = draw_dash_cage(cage.cells);
+        cage.objs = draw_dash_cage(cage.cells);
     } else {
         mark(x, y);
     }
@@ -384,16 +392,16 @@ function mousedown(event, x, y) {
     drag = true;
 
     if (current_mode === "thermo") {
-        thermo = {start: [x, y], points: [], color: current_color};
-        thermo.objs = draw_thermo(thermo.start, thermo.points, current_style, current_color);
+        thermo = {cells: [[x, y]], color: current_color};
+        thermo.objs = draw_thermo(thermo.cells, current_style, current_color);
     }
     else if (current_mode === "cage" && current_style === "dash") {
         cage = {cells: [x, y]};
-        cage.lines = draw_dash_cage(cage.cells);
+        cage.objs = draw_dash_cage(cage.cells);
     }
     else if (current_mode === "cage" && current_style === "edge") {
         edge_cage = {cells: [x, y]};
-        draw_edge_cage(edge_cage.cells);
+        edge_cage.objs = draw_edge_cage(edge_cage.cells);
     }
     else if (current_mode === "edge") {
     }
@@ -404,42 +412,54 @@ function mousedown(event, x, y) {
     scene.render();
 }
 
-function delete_thermo(pos)
-{
-    let start = center_px(pos);
-    let remove = [];
-    underlay.children.forEach(e => {
-        if (e.position.x === start[0] && e.position.y === start[1])
-            remove.push(e);
-    });
-    underlay.remove(...remove);
-    scene.render();
-}
-
 function center_px(p)
 {
     return [p[0] * cell_size + cell_size / 2,
             p[1] * cell_size + cell_size / 2];
 }
 
-function draw_thermo(start, points, style, color_index) {
+function draw_thermo(points, style, color_index) {
     let _color = DrawColors[color_index].match(/[.\d]+/g).map(c => (c > 1) ? c / 255 : +c);
     let color = new Color(..._color);
     color.red = color.red * color.alpha + (1 - color.alpha) * 1;
     color.green = color.green * color.alpha + (1 - color.alpha) * 1;
     color.blue = color.blue * color.alpha + (1 - color.alpha) * 1;
     color.alpha = 1;
-    let start_px = center_px(start);
     let bulb = null;
-    if (style === "bulb")
-      bulb = new Circle(start_px, cell_size * 0.4, {fill: color});
-    points = points.map(p => {
+    let arrow = null;
+    let strokeWidth = cell_size * 0.3;
+    let start_px = center_px(points[0]);
+    points = points.slice(1).map(p => {
         let px = center_px(p);
         return {x: px[0] - start_px[0], y: px[1] - start_px[1]};
     });
+    if (style === "bulb")
+      bulb = new Circle(start_px, cell_size * 0.4, {fill: color});
+    else if (style === "arrow") {
+      strokeWidth = cell_size * 0.05;
+      bulb = new Circle(start_px, cell_size * 0.4,
+          {fill: "white", strokeWidth: strokeWidth, stroke: color});
+      if (points.length > 1) {
+        let p1 = points[points.length - 1];
+        let p2 = points[points.length - 2];
+        let dx = p2.x - p1.x;
+        let dy = p2.y - p1.y;
+        let cs = cell_size / 4;
+        arrow = new Container();
+        arrow.position = {x: p1.x + start_px[0], y: p1.y + start_px[1]};
+        arrow.options.rotation = 0.5 + (Math.atan2(dy, dx) / (2 * Math.PI));
+        let arrow_line = new Line({x: 0, y: 0},
+            [{x: -cs, y: -cs}, {x: 0, y: 0}, {x: -cs, y: cs}],
+            {stroke: color, strokeWidth: strokeWidth, join: Line.joins.miter});
+        arrow.add(arrow_line);
+      }
+    }
     let line = new Line(start_px, points,
-        {stroke: color, strokeWidth: cell_size * 0.3, join: Line.joins.miter});
-    let objs = [line];
+        {stroke: color, strokeWidth: strokeWidth, join: Line.joins.miter});
+    let objs = [];
+    if (arrow)
+      objs.push(arrow);
+    objs.push(line);
     if (bulb)
       objs.push(bulb);
     underlay.add(...objs);
@@ -451,16 +471,16 @@ function mouseup() {
     drag = false;
     if (current_mode === "thermo" && thermo) {
         stuff.push({type: type_thermo, style: current_style,
-                    start: thermo.start, points: thermo.points,
+                    cells: thermo.cells, objs: thermo.objs,
                     color: current_color});
         thermo = null;
     }
     else if (current_mode === "cage" && current_style === "dash" && cage) {
-        stuff.push({type: type_cage, style: current_style, cells: cage.cells});
+        stuff.push({type: type_cage, style: current_style, objs: cage.objs, cells: cage.cells});
         cage = null;
     }
     else if (current_mode === "cage" && current_style === "edge" && edge_cage) {
-        stuff.push({type: type_cage, style: current_style, cells: edge_cage.cells});
+        stuff.push({type: type_cage, style: current_style, objs: edge_cage.objs, cells: edge_cage.cells});
         edge_cage = null;
     }
 }
@@ -492,18 +512,6 @@ function each_cell(f) {
             f(m);
         }
     }
-}
-
-function delete_dash_cage(cells)
-{
-    let get_cage = (x, y) => {
-        return cells.find(e => e[0] === x && e[1] === y);
-    };
-
-    each_cell(m => {
-        if (get_cage(m.x, m.y))
-            m.r_cage.empty();
-    });
 }
 
 function draw_dash_cage(cells)
@@ -590,24 +598,13 @@ function draw_dash_cage(cells)
     return lines;
 }
 
-function delete_edge_cage(cells)
-{
-    let get_cage = (x, y) => {
-        return cells.find(e => e[0] === x && e[1] === y);
-    };
-
-    each_cell(m => {
-        if (get_cage(m.x, m.y))
-            m.edge_cage.empty();
-    });
-}
-
 function draw_edge_cage(cells)
 {
     let get_cage = (x, y) => {
         return cells.find(e => e[0] === x && e[1] === y);
     };
 
+    let lines = [];
     each_cell(m => {
         let x = m.x;
         let y = m.y;
@@ -643,8 +640,10 @@ function draw_edge_cage(cells)
             add_line(start, end);
         }
         l.forEach(e => m.edge_cage.add(e));
+        lines.push(...l);
     });
     scene.render();
+    return lines;
 }
 
 function load_size(base64)
@@ -696,17 +695,18 @@ function load(base64)
             set_cell(x, y, "color", color, text);
         }
     });
-    data.stuff.forEach(s => {
-        stuff.push(s);
+    data.stuff.forEach(_s => {
+        let s = {type: _s[0], style: _s[1], color: _s[2], cells: _s[3]};
         if (s.type === type_thermo) {
-            draw_thermo(s.start, s.points, s.style, s.color);
+            s.objs = draw_thermo(s.cells, s.style, s.color);
         }
         else if (s.type === type_cage && s.style === "dash") {
-            draw_dash_cage(s.cells);
+            s.objs = draw_dash_cage(s.cells);
         }
         else if (s.type === type_cage && s.style === "edge") {
-            draw_edge_cage(s.cells);
+            s.objs = draw_edge_cage(s.cells);
         }
+        stuff.push(s);
     });
 
     scene.render();
@@ -728,7 +728,7 @@ export function DrawGenerateUrl(description)
         grid: [cell_size, grid_w, grid_h, grid_left, grid_right, grid_top, grid_bottom,
                grid_div_width, grid_div_height, grid_style],
         cells: [],
-        stuff: stuff,
+        stuff: stuff.map(e => [e.type, e.style, e.color, e.cells]),
         desc: description
     };
 
@@ -747,32 +747,49 @@ export function DrawGenerateUrl(description)
     return window.location.origin + "/?s=1&p=" + encodeURIComponent(base64);
 }
 
+export function DrawCheck() {
+    let r = range(1, 10);
+    let rows = Array.from({length: 9}, () => []);
+    let columns = Array.from({length: 9}, () => []);
+    let boxes = Array.from({length: 9}, () => []);
+    each_cell(m => {
+      let x = m.x - grid_left;
+      let y = m.y - grid_top;
+      let n = +m.normal.text;
+      columns[x].push(n);
+      rows[y].push(n);
+      let b = Math.floor(x / 3) + Math.floor(y / 3) * 3;
+      boxes[b].push(n);
+    });
+    for (let i = 0; i < 9; ++i) {
+        if (!isEqual(rows[i].sort(), r)) {
+            alert(`bad row ${i}`);
+            return false;
+        }
+        if (!isEqual(columns[i].sort(), r)) {
+            alert(`bad column ${i}`);
+            return false;
+        }
+        if (!isEqual(boxes[i].sort(), r)) {
+          alert(`bad box ${i}`);
+          return false;
+      }
+    }
+    alert('OK');
+    return true;
+}
+
 export function DrawDelete() {
     if (!solve_mode) {
         let rem = [];
         stuff.forEach((s, i) => {
-            if (s.type === type_thermo) {
-                if (cursor[0] === s.start[0] && cursor[1] === s.start[1]) {
-                    delete_thermo(cursor);
-                    rem.push(i);
-                }
-            }
-            if (s.type === type_cage) {
-                if (s.style === "dash") {
-                    if (s.cells.find(c => c[0] === cursor[0] && c[1] === cursor[1])) {
-                        delete_dash_cage(s.cells);
-                        rem.push(i);
-                    }
-                }
-                else if (s.style === "edge") {
-                    if (s.cells.find(c => c[0] === cursor[0] && c[1] === cursor[1])) {
-                        delete_edge_cage(s.cells);
-                        rem.push(i);
-                    }
-                }
+            if (s.cells.find(c => c[0] === cursor[0] && c[1] === cursor[1])) {
+                s.objs.forEach(l => l.parent.remove(l));
+                rem.push(i);
             }
         });
-        rem.forEach(r => stuff.splice(r, 1));
+        rem.forEach(r => stuff[r] = null);
+        stuff = stuff.filter(e => e != null);
     }
 
     let count = 0;

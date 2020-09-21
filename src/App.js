@@ -2,7 +2,7 @@ import React from 'react';
 import './App.css';
 import { DrawRender, DrawSetMode, DrawUndo, DrawDelete,
          DrawGenerateUrl, DrawSetNumber, DrawSetColor, DrawColors,
-         DrawGetDescription, DrawReset } from './draw';
+         DrawGetDescription, DrawReset, DrawCheck } from './draw';
 import { Box, Button, ButtonGroup, Dialog, DialogTitle, DialogContent,
          DialogContentText, DialogActions, Slider, Typography, Select,
          MenuItem, FormControl, InputLabel, Grid, TextField, Switch } from '@material-ui/core';
@@ -56,10 +56,10 @@ class App extends React.Component {
       gridDivWidth: 3,
       gridDivHeight: 3,
       dashedGrid: false,
-      mode: solve_mode ? "normal" : "number",
+      mode: solve_mode ? "normal" : "thermo",
       numberStyle: "normal",
       cageStyle: "dash",
-      thermoStyle: "bulb",
+      thermoStyle: "arrow",
       dialogOpen: false,
       dialogText: "",
       seconds: 0,
@@ -176,6 +176,7 @@ class App extends React.Component {
                   onChange={(event) => this.setStyle("thermoStyle", event.target.value)}>
             <MenuItem value="bulb">With bulb</MenuItem>
             <MenuItem value="nobulb">No bulb</MenuItem>
+            <MenuItem value="arrow">Arrow</MenuItem>
           </Select>
         </FormControl>
       </Box>
@@ -225,7 +226,7 @@ class App extends React.Component {
     return (
       <Box display="flex" flexDirection="row">
         <UrlDialog text={this.state.dialogText} open={this.state.dialogOpen} onClose={() => this.setState({dialogOpen: false})}/>
-        {this.state.solveMode && this.state.description !== "" &&
+          {this.state.solveMode &&
           <Box width="250px">
             <Box margin="20px" padding="10px" boxShadow={3}>
               <Typography align="center" variant="h4">{new Date(this.state.seconds * 1000).toISOString().substr(11, 8)}</Typography>
@@ -235,12 +236,17 @@ class App extends React.Component {
                 <Button onClick={() => this.setState({seconds: 0, timeStatus: false})}><SkipPrevious/></Button>
               </ButtonGroup>
             </Box>
+            {this.state.description !== "" &&
+              <Box margin="20px">
+                <TextField multiline variant="outlined"
+                  InputProps={{readOnly: true}}
+                  value={this.state.description}/>
+              </Box>
+            }
             <Box margin="20px">
-              <TextField multiline variant="outlined"
-                InputProps={{readOnly: true}}
-                value={this.state.description}/>
+              <TextField multiline variant="outlined" />
             </Box>
-          </Box>
+        </Box>
         }
         {!this.state.solveMode &&
           <Box width="250px">
@@ -315,6 +321,7 @@ class App extends React.Component {
           <Box margin="30px">
             <ButtonGroup fullWidth={true} size="large" variant="contained" orientation="vertical">
               <Button onClick={DrawReset}>Reset</Button>
+              <Button onClick={DrawCheck}>Check</Button>
               <Button onClick={DrawUndo}>Undo</Button>
               <Button onClick={DrawDelete}>Delete</Button>
             </ButtonGroup>

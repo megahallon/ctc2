@@ -12,7 +12,9 @@ style (optional) normal, small center, corners, boundary
 color (optional)
 
 any number of:
+
 base: type, cells, style, color
+      objs: pencil objects for delete, dont save
 
 type: cage
 cells: list x,y of cells
