@@ -1,12 +1,11 @@
-import {
-    Scene, Text, Rectangle, Component,
-    Color, Container, Line, Circle
-} from "pencil.js";
-
+import { Scene, Text, Rectangle, Component, Container, Line } from "pencil.js";
+import { draw_cage } from "./cage";
+import { draw_path } from "./path";
 import pako from "pako";
 import msgpack from "msgpack-lite";
 import { isEqual, range } from 'lodash';
 
+let ctx = {};
 let cell_size = 0;
 let grid_w = null;
 let grid_h = null;
@@ -20,7 +19,7 @@ let grid_style = "normal";
 let corner_offset = 0;
 let hover_offset = 0;
 
-const type_thermo = 1;
+const type_path = 1;
 const type_cage = 2;
 
 const lock_normal = 1;
@@ -317,10 +316,10 @@ function mark(x, y) {
 function inner_hover(x, y) {
     if (!drag) return;
 
-    if (current_mode === "thermo") {
+    if (current_mode === "path") {
         underlay.remove(...current.objs);
         current.cells.push([x, y]);
-        current.objs = draw_thermo(current.cells, current_style, current_color);
+        current.objs = draw_path(ctx, current.cells, current_style, current_color);
         scene.render();
     }
 }
@@ -357,17 +356,12 @@ function move(event, x, y) {
 function hover(x, y) {
     if (!drag) return;
 
-    if (current_mode === "thermo" || current_mode === "edge") {
-    } else if (current_mode === "cage" && current_style === "edge") {
+    if (current_mode === "path" || current_mode === "edge") {
+    } else if (current_mode === "cage") {
         if (current.objs)
             current.objs.forEach(l => l.parent.remove(l));
         current.cells.push([x, y]);
-        current.objs = draw_edge_cage(current.cells);
-    } else if (current_mode === "cage" && current_style === "dash") {
-        if (current.objs)
-            current.objs.forEach(l => l.parent.remove(l));
-        current.cells.push([x, y]);
-        current.objs = draw_dash_cage(current.cells);
+        current.objs = draw_cage(ctx, current.cells, current_style);
     } else {
         mark(x, y);
     }
@@ -387,17 +381,13 @@ function mousedown(event, x, y) {
     cursor = [x, y];
     drag = true;
 
-    if (current_mode === "thermo") {
+    if (current_mode === "path") {
         current = {cells: [[x, y]], color: current_color};
-        current.objs = draw_thermo(current.cells, current_style, current_color);
+        current.objs = draw_path(ctx, current.cells, current_style, current_color);
     }
-    else if (current_mode === "cage" && current_style === "dash") {
+    else if (current_mode === "cage") {
         current = {cells: [x, y]};
-        current.objs = draw_dash_cage(current.cells);
-    }
-    else if (current_mode === "cage" && current_style === "edge") {
-        current = {cells: [x, y]};
-        current.objs = draw_edge_cage(current.cells);
+        current.objs = draw_cage(ctx, current.cells, current_style);
     }
     else if (current_mode === "edge") {
     }
@@ -408,64 +398,10 @@ function mousedown(event, x, y) {
     scene.render();
 }
 
-function center_px(p)
-{
-    return [p[0] * cell_size + cell_size / 2,
-            p[1] * cell_size + cell_size / 2];
-}
-
-function draw_thermo(points, style, color_index) {
-    let _color = DrawColors[color_index].match(/[.\d]+/g).map(c => (c > 1) ? c / 255 : +c);
-    let color = new Color(..._color);
-    color.red = color.red * color.alpha + (1 - color.alpha) * 1;
-    color.green = color.green * color.alpha + (1 - color.alpha) * 1;
-    color.blue = color.blue * color.alpha + (1 - color.alpha) * 1;
-    color.alpha = 1;
-    let bulb = null;
-    let arrow = null;
-    let strokeWidth = cell_size * 0.3;
-    let start_px = center_px(points[0]);
-    points = points.map(p => {
-        let px = center_px(p);
-        return {x: px[0] - start_px[0], y: px[1] - start_px[1]};
-    });
-    if (style === "bulb")
-      bulb = new Circle(start_px, cell_size * 0.4, {fill: color});
-    else if (style === "arrow") {
-      strokeWidth = cell_size * 0.07;
-      bulb = new Circle(start_px, cell_size * 0.4,
-          {fill: "white", strokeWidth: strokeWidth, stroke: color});
-      if (points.length > 1) {
-        let p1 = points[points.length - 1];
-        let p2 = points[points.length - 2];
-        let dx = p2.x - p1.x;
-        let dy = p2.y - p1.y;
-        let cs = cell_size / 4;
-        arrow = new Container();
-        arrow.position = {x: p1.x + start_px[0], y: p1.y + start_px[1]};
-        arrow.options.rotation = 0.5 + (Math.atan2(dy, dx) / (2 * Math.PI));
-        let arrow_line = new Line({x: -cs, y: -cs}, [{x: cs, y: cs}, {x: 0, y: cs * 2}],
-            {stroke: color, strokeWidth: strokeWidth, join: Line.joins.miter});
-        arrow.add(arrow_line);
-      }
-    }
-    let line = new Line(start_px, points.slice(1),
-        {stroke: color, strokeWidth: strokeWidth, join: Line.joins.miter});
-    let objs = [];
-    if (arrow)
-      objs.push(arrow);
-    objs.push(line);
-    if (bulb)
-      objs.push(bulb);
-    underlay.add(...objs);
-    scene.render();
-    return objs;
-}
-
 function mouseup() {
     drag = false;
-    if (current_mode === "thermo" && current) {
-        stuff.push({type: type_thermo, style: current_style,
+    if (current_mode === "path" && current) {
+        stuff.push({type: type_path, style: current_style,
           cells: current.cells, objs: current.objs, color: current_color});
         current = null;
     }
@@ -481,8 +417,8 @@ export function DrawSetMode(state) {
     solve_mode = state.solveMode;
     if (state.mode === "cage")
         current_style = state.cageStyle;
-    if (state.mode === "thermo")
-        current_style = state.thermoStyle;
+    if (state.mode === "path")
+        current_style = state.pathStyle;
     if (state.mode === "number" && state.numberStyle === "normal")
         current_mode = "set"
     if (state.mode === "number" && state.numberStyle === "corner")
@@ -503,146 +439,6 @@ function each_cell(f) {
             f(m);
         }
     }
-}
-
-function draw_cage(cells, style)
-{
-  if (style === "dash")
-    draw_dash_cage(cells);
-  if (style === "edge")
-    draw_edge_cage(cells);
-}
-
-function draw_dash_cage(cells)
-{
-    let get_cage = (x, y) => {
-        return cells.find(e => e[0] === x && e[1] === y);
-    };
-
-    let lines = [];
-    each_cell(m => {
-        let x = m.x;
-        let y = m.y;
-        if (!get_cage(x, y)) return;
-        let up = get_cage(x, y - 1);
-        let down = get_cage(x, y + 1);
-        let left = get_cage(x - 1, y);
-        let right = get_cage(x + 1, y);
-        let ul = get_cage(x - 1, y - 1);
-        let ur = get_cage(x + 1, y - 1);
-        let dl = get_cage(x - 1, y + 1);
-        let dr = get_cage(x + 1, y + 1);
-        let l = [];
-        let add_line = (start, end) => {
-            l.push(new DashLine(
-                start, [[end[0] - start[0], end[1] - start[1]]],
-                {dash: 4, strokeWidth: 2, stroke: "black"}));
-        }
-        if (!left) {
-            let start = m.corner_pos[0];
-            let end = m.corner_pos[3];
-            if (up) {
-                start = m.corner_ext_pos[1].slice(0);
-                start[1] -= (!ul ? 0 : corner_offset);
-            }
-            if (down) {
-                end = m.corner_ext_pos[6].slice(0);
-                end[1] += (!dl ? 0 : corner_offset);
-            }
-            add_line(start, end);
-        }
-        if (!right) {
-            let start = m.corner_pos[1];
-            let end = m.corner_pos[2];
-            if (up) {
-                start = m.corner_ext_pos[2].slice(0);
-                start[1] -= (!ur ? 0 : corner_offset);
-            }
-            if (down) {
-                end = m.corner_ext_pos[5].slice(0);
-                end[1] += (!dr ? 0 : corner_offset);
-            }
-            add_line(start, end);
-        }
-        if (!up) {
-            let start = m.corner_pos[0];
-            let end = m.corner_pos[1];
-            if (left) {
-                start = m.corner_ext_pos[0].slice(0);
-                start[0] -= (!ul ? 0 : corner_offset);
-            }
-            if (right) {
-                end = m.corner_ext_pos[3].slice(0);
-                end[0] += (!ur ? 0 : corner_offset);
-            }
-            add_line(start, end);
-        }
-        if (!down) {
-            let start = m.corner_pos[3];
-            let end = m.corner_pos[2];
-            if (left) {
-                start = m.corner_ext_pos[7].slice(0);
-                start[0] -= (!dl ? 0 : corner_offset);
-            }
-            if (right) {
-                end = m.corner_ext_pos[4].slice(0);
-                end[0] += (!dr ? 0 : corner_offset);
-            }
-            add_line(start, end);
-        }
-        l.forEach(e => m.r.add(e));
-        lines = lines.concat(l);
-    });
-    scene.render();
-    return lines;
-}
-
-function draw_edge_cage(cells)
-{
-    let get_cage = (x, y) => {
-        return cells.find(e => e[0] === x && e[1] === y);
-    };
-
-    let lines = [];
-    each_cell(m => {
-        let x = m.x;
-        let y = m.y;
-        if (!get_cage(x, y)) return;
-        let up = get_cage(x, y - 1);
-        let down = get_cage(x, y + 1);
-        let left = get_cage(x - 1, y);
-        let right = get_cage(x + 1, y);
-        let l = [];
-        let add_line = (start, end) => {
-            l.push(new Line(
-                start, [[end[0] - start[0], end[1] - start[1]]],
-                {strokeWidth: 4, stroke: "black"}));
-        }
-        if (!left) {
-            let start = m.r_corner_pos[0];
-            let end = m.r_corner_pos[3];
-            add_line(start, end);
-        }
-        if (!right) {
-            let start = m.r_corner_pos[1];
-            let end = m.r_corner_pos[2];
-            add_line(start, end);
-        }
-        if (!up) {
-            let start = m.r_corner_pos[0];
-            let end = m.r_corner_pos[1];
-            add_line(start, end);
-        }
-        if (!down) {
-            let start = m.r_corner_pos[3];
-            let end = m.r_corner_pos[2];
-            add_line(start, end);
-        }
-        l.forEach(e => m.r.add(e));
-        lines.push(...l);
-    });
-    scene.render();
-    return lines;
 }
 
 function load_size(base64)
@@ -696,11 +492,11 @@ function load(base64)
     });
     data.stuff.forEach(_s => {
         let s = {type: _s[0], style: _s[1], color: _s[2], cells: _s[3]};
-        if (s.type === type_thermo) {
-            s.objs = draw_thermo(s.cells, s.style, s.color);
+        if (s.type === type_path) {
+            s.objs = draw_path(ctx, s.cells, s.style, s.color);
         }
         else if (s.type === type_cage) {
-            s.objs = draw_cage(s.cells, s.style);
+            s.objs = draw_cage(ctx, s.cells, s.style);
         }
         stuff.push(s);
     });
@@ -1021,8 +817,7 @@ export function DrawRender(code, wrapper, state) {
                 cage_corner: cage_corner[0],
                 edge_right: edge_right,
                 edge_bottom: edge_bottom,
-                r: r,
-                r_color_set: r_color_set,
+                r: r, r_color_set: r_color_set,
                 r_color: r_color, main_grid: main_grid
             };
             outer.add(cont);
@@ -1043,6 +838,13 @@ export function DrawRender(code, wrapper, state) {
 
     if (code)
         load(code);
+
+    ctx.scene = scene;
+    ctx.underlay = underlay;
+    ctx.cell_size = cell_size;
+    ctx.corner_offset = corner_offset;
+    ctx.each_cell = each_cell;
+    ctx.get = get;
 
     return null;
 }

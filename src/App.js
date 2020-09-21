@@ -56,10 +56,10 @@ class App extends React.Component {
       gridDivWidth: 3,
       gridDivHeight: 3,
       dashedGrid: false,
-      mode: solve_mode ? "normal" : "thermo",
+      mode: solve_mode ? "normal" : "number",
       numberStyle: "normal",
       cageStyle: "dash",
-      thermoStyle: "arrow",
+      pathStyle: "arrow",
       dialogOpen: false,
       dialogText: "",
       seconds: 0,
@@ -161,18 +161,22 @@ class App extends React.Component {
     );
   }
 
-  thermoStyleBox() {
+  pathStyleBox() {
     return (
       <Box margin="10px">
         <FormControl fullWidth={true}>
-          <InputLabel shrink id="thermostyle-label">
+          <InputLabel shrink id="pathstyle-label">
             Style
           </InputLabel>
-          <Select labelId="thermostyle-label" fullWidth={true} value={this.state.thermoStyle}
-                  onChange={(event) => this.setStyle("thermoStyle", event.target.value)}>
-            <MenuItem value="bulb">With bulb</MenuItem>
-            <MenuItem value="nobulb">No bulb</MenuItem>
+          <Select labelId="pathstyle-label" fullWidth={true} value={this.state.pathStyle}
+                  onChange={(event) => this.setStyle("pathStyle", event.target.value)}>
+            <MenuItem value="thin">Line</MenuItem>
+            <MenuItem value="fat">Fat Line</MenuItem>
+            <MenuItem value="thermo">Thermo</MenuItem>
             <MenuItem value="arrow">Arrow</MenuItem>
+            <MenuItem value="arrowcircle">Arrow with circle</MenuItem>
+            <MenuItem value="roundborder">Round border</MenuItem>
+            <MenuItem value="border">Border</MenuItem>
           </Select>
         </FormControl>
       </Box>
@@ -255,12 +259,12 @@ class App extends React.Component {
               <Select fullWidth={true} value={this.state.mode} onChange={(event) => this.setMode(event.target.value)}>
                 <MenuItem value="number">Number</MenuItem>
                 <MenuItem value="cage">Cage</MenuItem>
-                <MenuItem value="thermo">Thermo</MenuItem>
+                <MenuItem value="path">Path</MenuItem>
                 <MenuItem value="color">Color</MenuItem>
               </Select>
               { this.state.mode === "number" && this.numberStyleBox() }
               { this.state.mode === "cage" && this.cageStyleBox() }
-              { this.state.mode === "thermo" && this.thermoStyleBox() }
+              { this.state.mode === "path" && this.pathStyleBox() }
             </Box>
             <Box margin="30px">
               <ButtonGroup fullWidth={true} size="large" variant="contained" orientation="vertical">
