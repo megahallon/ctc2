@@ -31,7 +31,7 @@ export function draw_path(ctx, cells, style, color_index) {
       objs.push(bulb, line);
     }
     else if (style === "thin") {
-      let strokeWidth = cell_size * 0.1;
+      let strokeWidth = cell_size * 0.05;
       let line = new Line(start_px, points.slice(1),
           {stroke: color, strokeWidth: strokeWidth, join: Line.joins.miter});
       objs.push(line);
@@ -44,16 +44,16 @@ export function draw_path(ctx, cells, style, color_index) {
     }
     else if (style === "roundborder") {
       let line1 = new Line(start_px, points.slice(1),
-          {stroke: "black", strokeWidth: cell_size * 0.9, join: Line.joins.miter});
-      let line2 = new Line(start_px, points.slice(1),
           {stroke: color, strokeWidth: cell_size * 0.8, join: Line.joins.miter});
+      let line2 = new Line(start_px, points.slice(1),
+          {stroke: "white", strokeWidth: cell_size * 0.67, join: Line.joins.miter});
       objs.push(line1, line2);
     }
     else if (style === "border") {
       let line1 = new Line(start_px, points.slice(1),
-          {stroke: "black", strokeWidth: cell_size * 0.9, cap: Line.caps.square, join: Line.joins.miter});
-      let line2 = new Line(start_px, points.slice(1),
           {stroke: color, strokeWidth: cell_size * 0.8, cap: Line.caps.square, join: Line.joins.miter});
+      let line2 = new Line(start_px, points.slice(1),
+          {stroke: "white", strokeWidth: cell_size * 0.67, cap: Line.caps.square, join: Line.joins.miter});
       objs.push(line1, line2);
     }
     else if (style === "arrowcircle" || style === "arrow") {
