@@ -26,6 +26,7 @@ const type_cage = 2;
 const lock_normal = 1;
 const lock_corner = 2;
 const lock_color = 3;
+const lock_boundary = 4;
 
 const sol_text_color = "rgb(29, 106, 229)";
 const mark_color = "rgba(247, 208, 56, 0.5)";
@@ -113,7 +114,6 @@ function set_symbol(container, str)
 {
     let text;
     let size;
-    console.log(container);
     if (container.normal) {
         size = cell_size;
         text = container.normal;
@@ -125,20 +125,23 @@ function set_symbol(container, str)
     }
     let cx = size / 2;
     let cy = size / 2;
+    if (container.symbol)
+        container.remove(container.symbol);
     if (str[0] === "#") {
         let symbol = +str.substr(1);
+        container.symboltext = str;
         if (container.symbol)
-            container.remove(symbol);
+            container.remove(container.symbol);
         if (symbol === 1) {
             // black circle
-            let circle = new Circle([cx, cy], cell_size * 0.2,
-                {fill: "black"});
+            let circle = new Circle([cx, cy], size / 2,
+                {fill: "black", stroke: "black", strokeWidth: 2});
             container.symbol = circle;
             container.add(circle);
         }
         if (symbol === 2) {
             // white circle
-            let circle = new Circle([cx, cy], cell_size * 0.2,
+            let circle = new Circle([cx, cy], size / 2,
                 {fill: "white", stroke: "black", strokeWidth: 2});
             container.symbol = circle;
             container.add(circle);
@@ -154,9 +157,8 @@ function set_cell(pos, mode, color, newtext)
     let x = pos[0];
     let y = pos[1];
     let b = null;
-    if (pos.length === 3) {
-        b = get_boundary(pos);
-    }
+    if (pos.length === 3)
+        b = get(...pos);
     let m = get(x, y);
     let undo_entry = {
         mode: mode,
@@ -168,7 +170,7 @@ function set_cell(pos, mode, color, newtext)
     if (!m.main_grid && mode !== "set") {
         return;
     }
-    if (m.lock_type === lock_normal && mode !== "set") {
+    if (m.lock_type === lock_normal && mode !== "set" && mode !== "boundary") {
         return;
     }
 
@@ -352,11 +354,14 @@ function keydown(event) {
     scene.render();
 }
 
-function get(x, y) {
+function get(x, y, b) {
     if (x < 0 || y < 0 || x >= grid_w || y >= grid_h) {
         return null;
     }
-    return matrix[y][x];
+    let m = matrix[y][x];
+    if (b >= 0)
+        return m.boundary[b];
+    return m;
 }
 
 function mark(x, y) {
@@ -427,16 +432,12 @@ function unmark() {
     });
 }
 
-function get_boundary(b) {
-    return get(b[0], b[1]).boundary[b[2]];
-}
-
 function boundary_mousedown(event, x, y, i) {
     if (boundary)
-        get_boundary(boundary).options.strokeWidth = 0;
+        get(...boundary).options.strokeWidth = 0;
     unmark();
     cursor = null;
-    let b = get_boundary([x, y, i]);
+    let b = get(x, y, i);
     b.options.stroke = "red";
     b.options.strokeWidth = 1;
     boundary = [x, y, i];
@@ -448,7 +449,7 @@ function mousedown(event, x, y) {
         unmark();
 
     if (boundary) {
-        get_boundary(boundary).options.strokeWidth = 0;
+        get(...boundary).options.strokeWidth = 0;
         boundary = null;
     }
 
@@ -553,8 +554,6 @@ function load(base64)
     let unpack = pako.inflate(pack);
     let data = msgpack.decode(unpack);
 
-    underlay.empty();
-
     stuff = [];
     each_cell(m => {
         m.lock_type = 0;
@@ -563,15 +562,18 @@ function load(base64)
     });
 
     data.cells.forEach(c => {
-        let [x, y, type, text, color] = c;
+        let [pos, type, text, color] = c;
         if (type === lock_normal) {
-            set_cell([x, y], "set", color, text);
+            set_cell(pos, "set", color, text);
         }
         else if (type === lock_corner) {
-            set_cell([x, y], "set_corner", color, text);
+            set_cell(pos, "set_corner", color, text);
         }
         else if (type === lock_color) {
-            set_cell([x, y], "color", color, text);
+            set_cell(pos, "color", color, text);
+        }
+        else if (type === lock_boundary) {
+            set_cell(pos, "boundary", color, text);
         }
     });
     data.stuff.forEach(_s => {
@@ -607,13 +609,21 @@ export function DrawGenerateUrl(description)
     };
 
     each_cell(m => {
+        let pos = [m.x, m.y];
         if (m.lock_type === lock_normal)
-            out.cells.push([m.x, m.y, m.lock_type, m.normal.text, m.color]);
+            out.cells.push([pos, m.lock_type, m.normal.text, m.color]);
         if (m.lock_type === lock_corner)
-            out.cells.push([m.x, m.y, m.lock_type, m.cage_corner.text, m.color]);
-        if (m.fill !== -1)
-            out.cells.push([m.x, m.y, lock_color, null, m.fill]);
+            out.cells.push([pos, m.lock_type, m.cage_corner.text, m.color]);
+        if (m.fill >= 0) {
+            out.cells.push([pos, lock_color, null, m.fill]);
+        }
+        m.boundary.forEach((b, i) => {
+            if (b.symboltext)
+                out.cells.push([[m.x, m.y, i], lock_boundary, b.symboltext, null]);
+        });
     });
+
+    console.log(out);
 
     let coded = msgpack.encode(out);
     let packed = pako.deflate(coded);
@@ -673,10 +683,16 @@ export function DrawDelete() {
     }
 
     let count = 0;
-    each_mark(m => {
-        set_cell([m.x, m.y], "reset", null, "");
-        ++count;
-    });
+
+    if (boundary) {
+        set_cell(boundary, "boundary", null, "");
+    }
+    else {
+        each_mark(m => {
+            set_cell([m.x, m.y], "reset", null, "");
+            ++count;
+        });
+    }
 
     if (count > 1) {
       undo_stack.push({mode: 'group', count: count});
@@ -815,7 +831,7 @@ export function DrawRender(code, wrapper, state) {
         matrix[y] = [];
     }
     let cs = cell_size;
-    boundary_size = cell_size * 0.25;
+    boundary_size = cell_size * 0.3;
     let bsize = boundary_size;
 
     for (let x = 0; x < grid_w; ++x) {
@@ -918,7 +934,7 @@ export function DrawRender(code, wrapper, state) {
             matrix[y][x] = {
                 x: x, y: y, pos: [xp, yp], cont: cont, rect: r,
                 boundary: boundary,
-                fill: null, color: null,
+                fill: -1, color: null,
                 normal: normal, center: center,
                 r_corner_pos: r_corner,
                 corner: corner, side: side,
