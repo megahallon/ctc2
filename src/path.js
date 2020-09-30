@@ -44,17 +44,27 @@ export function draw_path(ctx, cells, style, color_index) {
     }
     else if (style === "roundborder") {
       let line1 = new Line(start_px, points.slice(1),
-          {stroke: color, strokeWidth: cell_size * 0.8, join: Line.joins.miter});
+          {stroke: color, strokeWidth: cell_size * 0.8, join: Line.joins.round});
       let line2 = new Line(start_px, points.slice(1),
-          {stroke: "white", strokeWidth: cell_size * 0.67, join: Line.joins.miter});
+          {stroke: "white", strokeWidth: cell_size * 0.67, join: Line.joins.round});
       objs.push(line1, line2);
     }
     else if (style === "border") {
       let line1 = new Line(start_px, points.slice(1),
-          {stroke: color, strokeWidth: cell_size * 0.8, cap: Line.caps.square, join: Line.joins.miter});
+          {stroke: color, strokeWidth: cell_size * 0.8, cap: Line.caps.square, join: Line.joins.round});
       let line2 = new Line(start_px, points.slice(1),
-          {stroke: "white", strokeWidth: cell_size * 0.67, cap: Line.caps.square, join: Line.joins.miter});
+          {stroke: "white", strokeWidth: cell_size * 0.67, cap: Line.caps.square, join: Line.joins.round});
       objs.push(line1, line2);
+    }
+    else if (style === "roundfill") {
+      let line1 = new Line(start_px, points.slice(1),
+          {stroke: color, strokeWidth: cell_size * 0.8, join: Line.joins.round});
+      objs.push(line1);
+    }
+    else if (style === "squarefill") {
+      let line1 = new Line(start_px, points.slice(1),
+          {stroke: color, strokeWidth: cell_size * 0.8, cap: Line.caps.square, join: Line.joins.round});
+      objs.push(line1);
     }
     else if (style === "arrowcircle" || style === "arrow") {
       let strokeWidth = cell_size * 0.07;
@@ -81,11 +91,8 @@ export function draw_path(ctx, cells, style, color_index) {
         objs.push(bulb);
       }
     }
-    else if (style === "tube") {
 
-    }
-
-    ctx.underlay.add(...objs);
+    ctx.underlay2.add(...objs);
     ctx.scene.render();
 
     return objs;

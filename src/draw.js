@@ -17,6 +17,7 @@ let grid_right = 0;
 let grid_div_width = 0;
 let grid_div_height = 0;
 let grid_style = "normal";
+let grid_diagonals = false;
 let corner_offset = 0;
 let hover_offset = 0;
 
@@ -28,6 +29,10 @@ const lock_corner = 2;
 const lock_color = 3;
 const lock_boundary = 4;
 
+const b_corner = 1;
+const b_boundary = 2;
+
+const transparent = "rgb(0, 0, 0, 0)";
 const sol_text_color = "rgb(29, 106, 229)";
 const mark_color = "rgba(247, 208, 56, 0.5)";
 export const DrawColors = [
@@ -152,7 +157,7 @@ function set_symbol(container, str)
     }
 }
 
-function set_cell(pos, mode, color, newtext)
+function _set_cell(lock, pos, mode, color, newtext)
 {
     let x = pos[0];
     let y = pos[1];
@@ -167,16 +172,17 @@ function set_cell(pos, mode, color, newtext)
         old_normal: m.normal.text
     };
 
-    if (!m.main_grid && mode !== "set") {
+    if (!m.main_grid && mode !== "normal" && !lock) {
         return;
     }
-    if (m.lock_type === lock_normal && mode !== "set" && mode !== "boundary") {
+    if (m.lock_type === lock_normal && !lock && mode !== "color") {
         return;
     }
 
     if (mode === "reset") {
         m.center.text = "";
         m.normal.text = "";
+        m.cage_corner.text = "";
         m.corner.forEach(t => t.text = "");
         m.side.forEach(t => t.text = "");
         m.r_color.options.fill = null;
@@ -189,8 +195,8 @@ function set_cell(pos, mode, color, newtext)
         }
         set_symbol(b, newtext);
     }
-    else if (mode === "normal" || mode === "set") {
-        if (mode === "normal") {
+    else if (mode === "normal") {
+        if (!lock) {
             m.normal.options.fill = sol_text_color;
         }
         else {
@@ -252,7 +258,7 @@ function set_cell(pos, mode, color, newtext)
         m.side.forEach(t => { t.text = text[i++] || ""; });
     }
     else if (mode === "color") {
-        if (solve_mode) {
+        if (!lock) {
             m.r_color.options.fill = DrawColors[color];
         }
         else {
@@ -268,6 +274,15 @@ function keyup(event) {
     if (event.key === "Shift") {
         shift = false;
     }
+}
+
+function set_cell(pos, mode, color, newtext) {
+    let lock = !solve_mode;
+    _set_cell(lock, pos, mode, color, newtext);
+}
+
+function lock_cell(pos, mode, color, newtext) {
+    _set_cell(true, pos, mode, color, newtext);
 }
 
 export function DrawSetNumber(number) {
@@ -309,14 +324,14 @@ function keydown(event) {
     else if (event.key >= "0" && event.key <= "9") {
         newtext = event.key;
     }
-    else if (event.key === "u") {
-        DrawUndo();
-        return;
+    else if (event.key >= "a" && event.key <= "z" && !solve_mode) {
+        newtext = event.key;
     }
     else if (event.key.startsWith("Arrow") && cursor) {
+        let c = cursor.slice();
         if (!shift)
             unmark();
-
+        cursor = c;
         if (event.key === "ArrowUp" && cursor[1] > 0)
             cursor[1] -= 1;
         if (event.key === "ArrowDown" && cursor[1] < grid_h - 1)
@@ -374,7 +389,7 @@ function inner_hover(x, y) {
     if (!drag) return;
 
     if (current_mode === "path") {
-        underlay.remove(...current.objs);
+        current.objs.forEach(o => o.parent.remove(o));
         current.cells.push([x, y]);
         current.objs = draw_path(ctx, current.cells, current_style, current_color);
         scene.render();
@@ -425,22 +440,30 @@ function hover(x, y) {
     scene.render();
 }
 
+function mark_boundary(x, y, i)
+{
+    unmark();
+
+    let b = get(x, y).boundary[i];
+    b.options.stroke = "red";
+    b.options.strokeWidth = 1;
+    boundary = [x, y, i];
+}
+
 function unmark() {
+    if (boundary) {
+        get(...boundary).options.strokeWidth = 0;
+        boundary = null;
+    }
     each_mark(m => {
         m.rect.options.fill = "rgba(255, 255, 255, 0)";
         m.mark = false;
     });
+    cursor = null;
 }
 
 function boundary_mousedown(event, x, y, i) {
-    if (boundary)
-        get(...boundary).options.strokeWidth = 0;
-    unmark();
-    cursor = null;
-    let b = get(x, y, i);
-    b.options.stroke = "red";
-    b.options.strokeWidth = 1;
-    boundary = [x, y, i];
+    mark_boundary(x, y, i);
     scene.render();
 }
 
@@ -494,10 +517,23 @@ export function DrawSetMode(state) {
         current_style = state.cageStyle;
     if (state.mode === "path")
         current_style = state.pathStyle;
-    if (state.mode === "number" && state.numberStyle === "normal")
-        current_mode = "set"
-    if (state.mode === "number" && state.numberStyle === "corner")
-        current_mode = "set_corner"
+    if (state.mode === "number" && state.numberStyle === "normal") {
+        current_mode = "normal"
+        each_cell(m => m.boundary.forEach(c => c.options.fill = null));
+    }
+    if (state.mode === "number" && state.numberStyle === "corner") {
+        current_mode = "boundary"
+        //mark_boundary(0, 0, 0);
+        each_cell(m => m.boundary.forEach(
+            b => b.options.fill = b.btype === b_corner ? transparent : null));
+    }
+    if (state.mode === "number" && state.numberStyle === "boundary") {
+        current_mode = "boundary"
+        //mark_boundary(0, 0, 0);
+        each_cell(m => m.boundary.forEach(
+            b => b.options.fill = b.btype === b_boundary ? transparent : null));
+    }
+    scene.render();
 }
 
 class DashLine extends Line {
@@ -546,6 +582,7 @@ function load_size(base64)
     grid_div_width = data.grid[7];
     grid_div_height = data.grid[8];
     grid_style = data.grid[9];
+    grid_diagonals = data.grid[10];
 }
 
 function load(base64)
@@ -564,16 +601,16 @@ function load(base64)
     data.cells.forEach(c => {
         let [pos, type, text, color] = c;
         if (type === lock_normal) {
-            set_cell(pos, "set", color, text);
+            lock_cell(pos, "normal", color, text);
         }
         else if (type === lock_corner) {
-            set_cell(pos, "set_corner", color, text);
+            lock_cell(pos, "set_corner", color, text);
         }
         else if (type === lock_color) {
-            set_cell(pos, "color", color, text);
+            lock_cell(pos, "color", color, text);
         }
         else if (type === lock_boundary) {
-            set_cell(pos, "boundary", color, text);
+            lock_cell(pos, "boundary", color, text);
         }
     });
     data.stuff.forEach(_s => {
@@ -602,7 +639,7 @@ export function DrawGenerateUrl(description)
     let out = {
         version: 1,
         grid: [cell_size, grid_w, grid_h, grid_left, grid_right, grid_top, grid_bottom,
-               grid_div_width, grid_div_height, grid_style],
+               grid_div_width, grid_div_height, grid_style, grid_diagonals],
         cells: [],
         stuff: stuff.map(e => [e.type, e.style, e.color, e.cells]),
         desc: description
@@ -622,8 +659,6 @@ export function DrawGenerateUrl(description)
                 out.cells.push([[m.x, m.y, i], lock_boundary, b.symboltext, null]);
         });
     });
-
-    console.log(out);
 
     let coded = msgpack.encode(out);
     let packed = pako.deflate(coded);
@@ -719,7 +754,7 @@ export function DrawUndo() {
         u = undo_stack.pop();
     }
     do {
-        if (u.mode === "normal" || u.mode === "set") {
+        if (u.mode === "normal") {
             set_cell([u.x, u.y], u.mode, current_color, u.old_normal);
         }
         else if (u.mode === "center" || u.mode === "corner") {
@@ -738,13 +773,13 @@ function add_grid(layer) {
     let dash = grid_style === "dash" ? 4 : 0;
 
     let thin = {
-        fill: "rgba(255, 255, 255, 0)",
+        fill: null,
         stroke: "black",
         strokeWidth: 1,
         dash: dash
     };
     let fat = {
-        fill: "rgba(255, 255, 255, 0)",
+        fill: null,
         stroke: "black",
         strokeWidth: 4
     };
@@ -755,6 +790,17 @@ function add_grid(layer) {
     let frame_h = grid_h - grid_top - grid_bottom;
 
     grid_lines = [];
+    if (grid_diagonals) {
+        let diagonal = {
+            stroke: DrawColors[1],
+            strokeWidth: 4,
+        };
+        grid_lines.push(new Line([grid_left * cell_size, grid_top * cell_size],
+            [[frame_w * cell_size, frame_h * cell_size]], diagonal));
+        grid_lines.push(new Line([(grid_w - grid_right) * cell_size, grid_top * cell_size],
+            [[-frame_w * cell_size, frame_h * cell_size]], diagonal));
+    }
+
     for (let x = 0; x <= frame_w; ++x) {
         grid_lines.push(new DashLine(
             [(grid_left + x) * cell_size, grid_top * cell_size], [[0, frame_h * cell_size]],
@@ -765,6 +811,9 @@ function add_grid(layer) {
             [grid_left * cell_size, (grid_top + y) * cell_size], [[frame_w * cell_size, 0]],
             (y % grid_div_height) === 0 ? fat : thin));
     }
+
+    grid_lines.push(new Rectangle([grid_left * cell_size, grid_top * cell_size],
+        frame_w * cell_size, frame_h * cell_size, fat));
 
     layer.add(...grid_lines);
 }
@@ -779,7 +828,8 @@ export function DrawRender(code, wrapper, state) {
     grid_h = grid_top + state.height + grid_bottom;
     grid_div_width = state.gridDivWidth;
     grid_div_height = state.gridDivHeight;
-    grid_style = state.dashedGrid ? "dash" : "normal";
+    grid_style = state.gridDashed ? "dash" : "normal";
+    grid_diagonals = state.gridDiagonals;
 
     if (code)
         load_size(code);
@@ -823,9 +873,10 @@ export function DrawRender(code, wrapper, state) {
     scene.add(outer);
 
     underlay = new Container([0, 0]);
+    let underlay2 = new Container([0, 0]);
     let gridlayer = new Container([0, 0]);
     let overlay = new Container([0, 0]);
-    outer.add(underlay, gridlayer, overlay);
+    outer.add(underlay2, underlay, gridlayer, overlay);
 
     for (let y = 0; y < grid_h; ++y) {
         matrix[y] = [];
@@ -882,19 +933,33 @@ export function DrawRender(code, wrapper, state) {
                         cage_corner.push(new Text2(p, "", cageCornerTextOptions));
                     corner.push(new Text(p, "", cornerTextOptions));
                 });
-                boundary.push(new Rectangle([-bsize / 2, -bsize / 2], bsize, bsize, boptions));
-                boundary.push(new Rectangle([cs / 2 - bsize / 2, -bsize / 2], bsize, bsize, boptions));
-                boundary.push(new Rectangle([-bsize / 2, cs / 2 - bsize / 2], bsize, bsize, boptions));
-                if (x === grid_w - grid_right - 1) {
-                    boundary.push(new Rectangle([cs - bsize / 2, -bsize / 2], bsize, bsize, boptions));
-                    boundary.push(new Rectangle([cs - bsize / 2, cs / 2 - bsize / 2], bsize, bsize, boptions));
+                if (!state.solveMode) {
+                    boundary.push(new Rectangle([corner_offset, corner_offset], bsize, bsize, boptions));
+                    boundary.push(new Rectangle([cs - bsize - corner_offset, corner_offset], bsize, bsize, boptions));
+                    boundary.push(new Rectangle([corner_offset, cs - bsize - corner_offset], bsize, bsize, boptions));
+                    boundary.push(new Rectangle([cs - bsize - corner_offset, cs - bsize - corner_offset],
+                        bsize, bsize, boptions));
+
+                    boundary.push(new Rectangle([-bsize / 2, -bsize / 2], bsize, bsize, boptions));
+                    boundary.push(new Rectangle([-bsize / 2, cs / 2 - bsize / 2], bsize, bsize, boptions));
+                    boundary.push(new Rectangle([cs / 2 - bsize / 2, -bsize / 2], bsize, bsize, boptions));
+                    if (x === grid_w - grid_right - 1) {
+                        boundary.push(new Rectangle([cs - bsize / 2, -bsize / 2], bsize, bsize, boptions));
+                        boundary.push(new Rectangle([cs - bsize / 2, cs / 2 - bsize / 2], bsize, bsize, boptions));
+                    }
+                    if (y === grid_h - grid_bottom - 1) {
+                        boundary.push(new Rectangle([-bsize / 2, cs - bsize / 2], bsize, bsize, boptions));
+                        boundary.push(new Rectangle([cs / 2 - bsize / 2, cs - bsize / 2], bsize, bsize, boptions));
+                        boundary.push(new Rectangle([cs - bsize / 2, cs - bsize / 2], bsize, bsize, boptions));
+                    }
+                    boundary.forEach((b, i) => {
+                        if (i < 4)
+                            b.btype = b_corner;
+                        else
+                            b.btype = b_boundary;
+                    });
+                    boundary.forEach((b, i) => b.on("mousedown", (event) => boundary_mousedown(event, x, y, i)));
                 }
-                if (y === grid_h - grid_bottom - 1) {
-                    boundary.push(new Rectangle([-bsize / 2, cs - bsize / 2], bsize, bsize, boptions));
-                    boundary.push(new Rectangle([cs / 2 - bsize / 2, cs - bsize / 2], bsize, bsize, boptions));
-                    boundary.push(new Rectangle([cs - bsize / 2, cs - bsize / 2], bsize, bsize, boptions));
-                }
-                boundary.forEach((b, i) => b.on("mousedown", (event) => boundary_mousedown(event, x, y, i)));
             }
             let side = [];
             if (main_grid) {
@@ -948,7 +1013,7 @@ export function DrawRender(code, wrapper, state) {
                 r_color: r_color, main_grid: main_grid
             };
             underlay.add(cont);
-            ocont.add(...boundary);
+            ocont.add(...corner, ...boundary);
             overlay.add(ocont);
         }
     }
@@ -957,6 +1022,7 @@ export function DrawRender(code, wrapper, state) {
 
     ctx.scene = scene;
     ctx.underlay = underlay;
+    ctx.underlay2 = underlay2;
     ctx.cell_size = cell_size;
     ctx.corner_offset = corner_offset;
     ctx.each_cell = each_cell;

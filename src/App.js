@@ -55,7 +55,8 @@ class App extends React.Component {
       bottom: 0,
       gridDivWidth: 3,
       gridDivHeight: 3,
-      dashedGrid: false,
+      gridDashed: false,
+      gridDiagonals: false,
       mode: solve_mode ? "normal" : "number",
       numberStyle: "normal",
       cageStyle: "dash",
@@ -63,7 +64,7 @@ class App extends React.Component {
       dialogOpen: false,
       dialogText: "",
       seconds: 0,
-      timeStatus: false,
+      timeStatus: true,
     };
   }
 
@@ -97,8 +98,10 @@ class App extends React.Component {
       desc = DrawGetDescription(code);
     }
     this.setState({description: desc}, () =>
-      DrawRender(code, this.canvasRef.current, this.state));
-    DrawSetMode(this.state);
+      {
+        DrawRender(code, this.canvasRef.current, this.state);
+        DrawSetMode(this.state);
+      });
 
     document.addEventListener("keydown", this.handleKeyDown);
 
@@ -138,6 +141,7 @@ class App extends React.Component {
                   onChange={(event) => this.setStyle("numberStyle", event.target.value)}>
             <MenuItem value="normal">Normal</MenuItem>
             <MenuItem value="corner">Corner</MenuItem>
+            <MenuItem value="boundary">Boundary</MenuItem>
           </Select>
         </FormControl>
       </Box>
@@ -177,6 +181,8 @@ class App extends React.Component {
             <MenuItem value="arrowcircle">Arrow with circle</MenuItem>
             <MenuItem value="roundborder">Round border</MenuItem>
             <MenuItem value="border">Border</MenuItem>
+            <MenuItem value="roundfill">Round fill</MenuItem>
+            <MenuItem value="squarefill">Square fill</MenuItem>
           </Select>
         </FormControl>
       </Box>
@@ -299,7 +305,9 @@ class App extends React.Component {
               { this.sizeSlider("gridDivWidth") }
               { this.sizeSlider("gridDivHeight") }
               <Typography>Dashed</Typography>
-              <Switch checked={this.state.dashedGrid} onChange={(e) => {this.setGridState("dashedGrid", e.target.checked)}}/>
+              <Switch checked={this.state.gridDashed} onChange={(e) => {this.setGridState("gridDashed", e.target.checked)}}/>
+              <Typography>Diagonals</Typography>
+              <Switch checked={this.state.gridDiagonals} onChange={(e) => {this.setGridState("gridDiagonals", e.target.checked)}}/>
             </Box>
             }
             { this.state.settingsMode === "description" &&
@@ -335,7 +343,8 @@ class App extends React.Component {
             <Grid container>
             {(!this.state.solveMode && this.state.mode !== "color") && DrawColors.map((color, index) =>
               <Grid key={index} item xs={4}>
-                <Button variant={this.state.color === index ? "contained" : "outlined"} onClick={() => {console.log(index, this.state.color); this.setState({color: index}); DrawSetColor(index)}}>
+                <Button variant={this.state.color === index ? "contained" : "outlined"} onClick={() => {
+                  this.setState({color: index}); DrawSetColor(index)}}>
                   <div style={{border: "1px solid black", background: color, width: "30px", height: "30px"}}/>
                 </Button>
               </Grid>
