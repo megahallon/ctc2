@@ -20,6 +20,7 @@ let grid_style = "normal";
 let grid_diagonals = false;
 let corner_offset = 0;
 let hover_offset = 0;
+let symbol_page = 0;
 
 const type_path = 1;
 const type_cage = 2;
@@ -115,6 +116,18 @@ class Text2 extends Text
     }
 }
 
+export function DrawSetSymbolPage(page)
+{
+    symbol_page = page;
+}
+
+export function DrawSymbol(element, page, num)
+{
+    let sc = new Scene(element);
+    set_symbol(sc, "#" + page + num);
+    sc.render();
+}
+
 function set_symbol(container, str)
 {
     let text;
@@ -133,20 +146,21 @@ function set_symbol(container, str)
     if (container.symbol)
         container.remove(container.symbol);
     if (str[0] === "#") {
-        let symbol = +str.substr(1);
+        //let page = +str.substr(1, 1)
+        let symbol = +str.substr(2, 1);
         container.symboltext = str;
         if (container.symbol)
             container.remove(container.symbol);
         if (symbol === 1) {
             // black circle
-            let circle = new Circle([cx, cy], size / 2,
-                {fill: "black", stroke: "black", strokeWidth: 2});
+            let circle = new Circle([cx, cy], 0.8 * size / 2,
+                {fill: DrawColors[current_color], stroke: "black", strokeWidth: 2});
             container.symbol = circle;
             container.add(circle);
         }
         if (symbol === 2) {
             // white circle
-            let circle = new Circle([cx, cy], size / 2,
+            let circle = new Circle([cx, cy], 0.8 * size / 2,
                 {fill: "white", stroke: "black", strokeWidth: 2});
             container.symbol = circle;
             container.add(circle);
@@ -287,8 +301,11 @@ function lock_cell(pos, mode, color, newtext) {
 
 export function DrawSetNumber(number) {
   let count = 0;
+  let symbol = number;
+  if (symbol_page > 0)
+    symbol = "#" + symbol_page + number;
   each_mark(m => {
-      set_cell([m.x, m.y], current_mode, current_color, number);
+      set_cell([m.x, m.y], current_mode, current_color, symbol);
       ++count;
   });
   if (count > 1)
@@ -323,6 +340,8 @@ function keydown(event) {
     }
     else if (event.key >= "0" && event.key <= "9") {
         newtext = event.key;
+        if (symbol_page > 0)
+          newtext = "#" + symbol_page + newtext;
     }
     else if (event.key >= "a" && event.key <= "z" && !solve_mode) {
         newtext = event.key;
@@ -349,7 +368,7 @@ function keydown(event) {
     }
 
     if (boundary) {
-        set_cell(boundary, "boundary", current_color, "#" + newtext);
+        set_cell(boundary, "boundary", current_color, newtext);
     }
     else {
         let count = 0;
@@ -361,7 +380,7 @@ function keydown(event) {
                     set_cell([m.x, m.y], current_mode, color, null);
             }
             else
-                set_cell([m.x, m.y], (count > 1 && current_mode === "normal") ? "center" : current_mode, current_color, newtext);
+                set_cell([m.x, m.y], current_mode, current_color, newtext);
         });
         if (count > 1)
             undo_stack.push({mode: 'group', count: count});
@@ -381,8 +400,12 @@ function get(x, y, b) {
 
 function mark(x, y) {
     let m = get(x, y);
-    m.mark = true;
-    m.rect.options.fill = mark_color;
+    if (!m.mark) {
+        m.mark = true;
+        m.rect.options.fill = mark_color;
+        return true;
+    }
+    return false;
 }
 
 function inner_hover(x, y) {
@@ -434,10 +457,11 @@ function hover(x, y) {
             current.objs.forEach(l => l.parent.remove(l));
         current.cells.push([x, y]);
         current.objs = draw_cage(ctx, current.cells, current_style);
+        scene.render();
     } else {
-        mark(x, y);
+        if (mark(x, y))
+            scene.render();
     }
-    scene.render();
 }
 
 function mark_boundary(x, y, i)
@@ -659,6 +683,8 @@ export function DrawGenerateUrl(description)
                 out.cells.push([[m.x, m.y, i], lock_boundary, b.symboltext, null]);
         });
     });
+
+    console.log(out);
 
     let coded = msgpack.encode(out);
     let packed = pako.deflate(coded);
@@ -933,33 +959,32 @@ export function DrawRender(code, wrapper, state) {
                         cage_corner.push(new Text2(p, "", cageCornerTextOptions));
                     corner.push(new Text(p, "", cornerTextOptions));
                 });
-                if (!state.solveMode) {
-                    boundary.push(new Rectangle([corner_offset, corner_offset], bsize, bsize, boptions));
-                    boundary.push(new Rectangle([cs - bsize - corner_offset, corner_offset], bsize, bsize, boptions));
-                    boundary.push(new Rectangle([corner_offset, cs - bsize - corner_offset], bsize, bsize, boptions));
-                    boundary.push(new Rectangle([cs - bsize - corner_offset, cs - bsize - corner_offset],
-                        bsize, bsize, boptions));
+                boundary.push(new Rectangle([corner_offset, corner_offset], bsize, bsize, boptions));
+                boundary.push(new Rectangle([cs - bsize - corner_offset, corner_offset], bsize, bsize, boptions));
+                boundary.push(new Rectangle([corner_offset, cs - bsize - corner_offset], bsize, bsize, boptions));
+                boundary.push(new Rectangle([cs - bsize - corner_offset, cs - bsize - corner_offset],
+                    bsize, bsize, boptions));
 
-                    boundary.push(new Rectangle([-bsize / 2, -bsize / 2], bsize, bsize, boptions));
-                    boundary.push(new Rectangle([-bsize / 2, cs / 2 - bsize / 2], bsize, bsize, boptions));
-                    boundary.push(new Rectangle([cs / 2 - bsize / 2, -bsize / 2], bsize, bsize, boptions));
-                    if (x === grid_w - grid_right - 1) {
-                        boundary.push(new Rectangle([cs - bsize / 2, -bsize / 2], bsize, bsize, boptions));
-                        boundary.push(new Rectangle([cs - bsize / 2, cs / 2 - bsize / 2], bsize, bsize, boptions));
-                    }
-                    if (y === grid_h - grid_bottom - 1) {
-                        boundary.push(new Rectangle([-bsize / 2, cs - bsize / 2], bsize, bsize, boptions));
-                        boundary.push(new Rectangle([cs / 2 - bsize / 2, cs - bsize / 2], bsize, bsize, boptions));
-                        boundary.push(new Rectangle([cs - bsize / 2, cs - bsize / 2], bsize, bsize, boptions));
-                    }
-                    boundary.forEach((b, i) => {
-                        if (i < 4)
-                            b.btype = b_corner;
-                        else
-                            b.btype = b_boundary;
-                    });
-                    boundary.forEach((b, i) => b.on("mousedown", (event) => boundary_mousedown(event, x, y, i)));
+                boundary.push(new Rectangle([-bsize / 2, -bsize / 2], bsize, bsize, boptions));
+                boundary.push(new Rectangle([-bsize / 2, cs / 2 - bsize / 2], bsize, bsize, boptions));
+                boundary.push(new Rectangle([cs / 2 - bsize / 2, -bsize / 2], bsize, bsize, boptions));
+                if (x === grid_w - grid_right - 1) {
+                    boundary.push(new Rectangle([cs - bsize / 2, -bsize / 2], bsize, bsize, boptions));
+                    boundary.push(new Rectangle([cs - bsize / 2, cs / 2 - bsize / 2], bsize, bsize, boptions));
                 }
+                if (y === grid_h - grid_bottom - 1) {
+                    boundary.push(new Rectangle([-bsize / 2, cs - bsize / 2], bsize, bsize, boptions));
+                    boundary.push(new Rectangle([cs / 2 - bsize / 2, cs - bsize / 2], bsize, bsize, boptions));
+                    boundary.push(new Rectangle([cs - bsize / 2, cs - bsize / 2], bsize, bsize, boptions));
+                }
+                boundary.forEach((b, i) => {
+                    if (i < 4)
+                        b.btype = b_corner;
+                    else
+                        b.btype = b_boundary;
+                });
+                if (!solve_mode)
+                    boundary.forEach((b, i) => b.on("mousedown", (event) => boundary_mousedown(event, x, y, i)));
             }
             let side = [];
             if (main_grid) {
@@ -989,9 +1014,12 @@ export function DrawRender(code, wrapper, state) {
             corner_ext_pos[5] = [cs - corner_offset, cs];
             corner_ext_pos[6] = [corner_offset, cs];
             corner_ext_pos[7] = [0, cs - corner_offset];
+            /*
             cont.add(r_color_set, r_color, r,
                      edge_right, edge_bottom, r_hover, normal, center,
                      ...cage_corner, ...corner, ...side);
+                     */
+            cont.add(r_color_set, r_color, r, r_hover, normal, center);
             cont.on("mousedown", (event) => mousedown(event, x, y));
             cont.on("hover", () => hover(x, y));
             cont.on("mousemove", (event) => move(event, x, y));

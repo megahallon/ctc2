@@ -1,8 +1,8 @@
 import React from 'react';
 import './App.css';
-import { DrawRender, DrawSetMode, DrawUndo, DrawDelete,
+import { DrawRender, DrawSymbol, DrawSetMode, DrawUndo, DrawDelete,
          DrawGenerateUrl, DrawSetNumber, DrawSetColor, DrawColors,
-         DrawGetDescription, DrawReset, DrawCheck } from './draw';
+         DrawGetDescription, DrawReset, DrawCheck, DrawSetSymbolPage } from './draw';
 import { Box, Button, ButtonGroup, Dialog, DialogTitle, DialogContent,
          DialogContentText, DialogActions, Slider, Typography, Select,
          MenuItem, FormControl, InputLabel, Grid, TextField, Switch } from '@material-ui/core';
@@ -40,6 +40,9 @@ class App extends React.Component {
   constructor(props) {
     super(props);
     this.canvasRef = React.createRef();
+    this.symbolRef = [];
+    for (let i = 0; i < 9; ++i)
+      this.symbolRef.push(React.createRef());
 
     this.state = {
       solveMode: solve_mode,
@@ -65,6 +68,7 @@ class App extends React.Component {
       dialogText: "",
       seconds: 0,
       timeStatus: true,
+      symbolPage: "0"
     };
   }
 
@@ -189,6 +193,93 @@ class App extends React.Component {
     );
   }
 
+  timerBox() {
+    return (
+      <Box minWidth="250px">
+        <Box margin="20px" padding="10px" boxShadow={3}>
+          <Typography align="center" variant="h4">{new Date(this.state.seconds * 1000).toISOString().substr(11, 8)}</    Typography>
+          <ButtonGroup fullWidth={true} size="large">
+            <Button onClick={() => this.setState({timeStatus: true})}><PlayArrow/></Button>
+            <Button onClick={() => this.setState({timeStatus: false})}><Pause/></Button>
+            <Button onClick={() => this.setState({seconds: 0, timeStatus: false})}><SkipPrevious/></Button>
+          </ButtonGroup>
+        </Box>
+        {this.state.description !== "" &&
+          <Box margin="20px">
+            <TextField multiline variant="outlined"
+              InputProps={{readOnly: true}}
+              value={this.state.description}/>
+          </Box>
+        }
+        <Box margin="20px">
+          <TextField multiline variant="outlined" />
+        </Box>
+      </Box>
+    );
+  }
+
+  settingLeftBox() {
+    return (
+      <Box minWidth="250px">
+        <Box margin="30px">
+          <Select fullWidth={true} value={this.state.mode} onChange={(event) => this.setMode(event.target.value)}>
+            <MenuItem value="number">Number</MenuItem>
+            <MenuItem value="cage">Cage</MenuItem>
+            <MenuItem value="path">Path</MenuItem>
+            <MenuItem value="color">Color</MenuItem>
+          </Select>
+          { this.state.mode === "number" && this.numberStyleBox() }
+          { this.state.mode === "cage" && this.cageStyleBox() }
+          { this.state.mode === "path" && this.pathStyleBox() }
+        </Box>
+        <Box margin="30px">
+          <ButtonGroup fullWidth={true} size="large" variant="contained" orientation="vertical">
+            <Button onClick={this.generateUrl}>Generate URL</Button>
+          </ButtonGroup>
+        </Box>
+        <Box margin="30px">
+          <Select fullWidth={true} value={this.state.settingsMode} onChange={(event) => this.setState({settingsMode:     event.target.value})}>
+            <MenuItem value="size">Size</MenuItem>
+            <MenuItem value="margins">Margins</MenuItem>
+            <MenuItem value="grid">Grid</MenuItem>
+            <MenuItem value="description">Description</MenuItem>
+          </Select>
+        </Box>
+        { this.state.settingsMode === "size" &&
+        <Box margin="30px" padding="10px" boxShadow={3}>
+          { this.sizeSlider("cellSize") }
+          { this.sizeSlider("width") }
+          { this.sizeSlider("height") }
+        </Box>
+        }
+        { this.state.settingsMode === "margins" &&
+        <Box margin="30px" padding="10px" boxShadow={3}>
+          { this.sizeSlider("left") }
+          { this.sizeSlider("right") }
+          { this.sizeSlider("top") }
+          { this.sizeSlider("bottom") }
+        </Box>
+        }
+        { this.state.settingsMode === "grid" &&
+        <Box margin="30px" padding="10px" boxShadow={3}>
+          { this.sizeSlider("gridDivWidth") }
+          { this.sizeSlider("gridDivHeight") }
+          <Typography>Dashed</Typography>
+          <Switch checked={this.state.gridDashed} onChange={(e) => {this.setGridState("gridDashed", e.target.checked)}}/>
+          <Typography>Diagonals</Typography>
+          <Switch checked={this.state.gridDiagonals} onChange={(e) => {this.setGridState("gridDiagonals",   e.target.checked)}}/  >
+        </Box>
+        }
+        { this.state.settingsMode === "description" &&
+        <Box margin="30px" padding="10px" boxShadow={3}>
+          <TextField multiline rows={8}
+            value={this.state.description} onChange={(e) => this.setState({description: e.target.value})}/>
+        </Box>
+        }
+      </Box>
+    );
+  }
+
   handleChange = (event, newValue) => {
     this.setState({[event.target.parentNode.id]: newValue});
   }
@@ -196,6 +287,16 @@ class App extends React.Component {
   setGrid = () => {
     // Can't use ref as element is replaced
     DrawRender(code, document.getElementById('canvas'), this.state);
+  }
+
+  setSymbolPage = (event) => {
+    this.setState({symbolPage: event.target.value},
+      () => {
+        if (+this.state.symbolPage > 0)
+          for (let i = 0; i < 9; ++i)
+            DrawSymbol(this.symbolRef[i].current.children[0], this.state.symbolPage, i + 1);
+      });
+    DrawSetSymbolPage(+event.target.value);
   }
 
   setGridState = (state, value) => {
@@ -237,91 +338,12 @@ class App extends React.Component {
     return (
       <Box display="flex" flexDirection="row">
         <UrlDialog text={this.state.dialogText} open={this.state.dialogOpen} onClose={() => this.setState({dialogOpen: false})}/>
-          {this.state.solveMode &&
-          <Box width="250px">
-            <Box margin="20px" padding="10px" boxShadow={3}>
-              <Typography align="center" variant="h4">{new Date(this.state.seconds * 1000).toISOString().substr(11, 8)}</Typography>
-              <ButtonGroup fullWidth={true} size="large">
-                <Button onClick={() => this.setState({timeStatus: true})}><PlayArrow/></Button>
-                <Button onClick={() => this.setState({timeStatus: false})}><Pause/></Button>
-                <Button onClick={() => this.setState({seconds: 0, timeStatus: false})}><SkipPrevious/></Button>
-              </ButtonGroup>
-            </Box>
-            {this.state.description !== "" &&
-              <Box margin="20px">
-                <TextField multiline variant="outlined"
-                  InputProps={{readOnly: true}}
-                  value={this.state.description}/>
-              </Box>
-            }
-            <Box margin="20px">
-              <TextField multiline variant="outlined" />
-            </Box>
-        </Box>
-        }
-        {!this.state.solveMode &&
-          <Box width="250px">
-            <Box margin="30px">
-              <Select fullWidth={true} value={this.state.mode} onChange={(event) => this.setMode(event.target.value)}>
-                <MenuItem value="number">Number</MenuItem>
-                <MenuItem value="cage">Cage</MenuItem>
-                <MenuItem value="path">Path</MenuItem>
-                <MenuItem value="color">Color</MenuItem>
-              </Select>
-              { this.state.mode === "number" && this.numberStyleBox() }
-              { this.state.mode === "cage" && this.cageStyleBox() }
-              { this.state.mode === "path" && this.pathStyleBox() }
-            </Box>
-            <Box margin="30px">
-              <ButtonGroup fullWidth={true} size="large" variant="contained" orientation="vertical">
-                <Button onClick={this.generateUrl}>Generate URL</Button>
-              </ButtonGroup>
-            </Box>
-            <Box margin="30px">
-              <Select fullWidth={true} value={this.state.settingsMode} onChange={(event) => this.setState({settingsMode: event.target.value})}>
-                <MenuItem value="size">Size</MenuItem>
-                <MenuItem value="margins">Margins</MenuItem>
-                <MenuItem value="grid">Grid</MenuItem>
-                <MenuItem value="description">Description</MenuItem>
-              </Select>
-            </Box>
-            { this.state.settingsMode === "size" &&
-            <Box margin="30px" padding="10px" boxShadow={3}>
-              { this.sizeSlider("cellSize") }
-              { this.sizeSlider("width") }
-              { this.sizeSlider("height") }
-            </Box>
-            }
-            { this.state.settingsMode === "margins" &&
-            <Box margin="30px" padding="10px" boxShadow={3}>
-              { this.sizeSlider("left") }
-              { this.sizeSlider("right") }
-              { this.sizeSlider("top") }
-              { this.sizeSlider("bottom") }
-            </Box>
-            }
-            { this.state.settingsMode === "grid" &&
-            <Box margin="30px" padding="10px" boxShadow={3}>
-              { this.sizeSlider("gridDivWidth") }
-              { this.sizeSlider("gridDivHeight") }
-              <Typography>Dashed</Typography>
-              <Switch checked={this.state.gridDashed} onChange={(e) => {this.setGridState("gridDashed", e.target.checked)}}/>
-              <Typography>Diagonals</Typography>
-              <Switch checked={this.state.gridDiagonals} onChange={(e) => {this.setGridState("gridDiagonals", e.target.checked)}}/>
-            </Box>
-            }
-            { this.state.settingsMode === "description" &&
-            <Box margin="30px" padding="10px" boxShadow={3}>
-              <TextField multiline rows={8}
-                value={this.state.description} onChange={(e) => this.setState({description: e.target.value})}/>
-            </Box>
-            }
-          </Box>
-        }
+        {this.state.solveMode && this.timerBox()}
+        {!this.state.solveMode && this.settingLeftBox()}
         <Box display="flex">
           <div id="canvas" ref={this.canvasRef}></div>
         </Box>
-        <Box width="250px">
+        <Box minWidth="250px" maxWidth="250px">
           {this.state.solveMode &&
             <Box margin="30px">
               <ButtonGroup fullWidth={true} size="large" variant="contained" orientation="vertical">
@@ -356,12 +378,31 @@ class App extends React.Component {
                 </Button>
               </Grid>
             )}
+            {!this.state.solveMode &&
+            <FormControl fullWidth={true}>
+              <InputLabel shrink id="numberstyle-label">
+                Symbol
+              </InputLabel>
+              <Select labelId="symbolpage-label" fullWidth={true} value={this.state.symbolPage}
+                      onChange={this.setSymbolPage}>
+                <MenuItem value="0">Numbers</MenuItem>
+                <MenuItem value="1">Circles</MenuItem>
+              </Select>
+            </FormControl>
+            }
             {this.state.mode !== "color" && [...Array(9).keys()].map(index =>
               <Grid key={index} item xs={4}>
                 <Button variant="outlined" onClick={() => DrawSetNumber(index + 1)}>
+                {+this.state.symbolPage === 0 &&
                 <div style={{fontSize: "20px"}}>
                   {index + 1}
                 </div>
+                }
+                {+this.state.symbolPage > 0 &&
+                <div ref={this.symbolRef[index]}>
+                <div style={{width: "30px", height: "30px"}}></div>
+                </div>
+                }
                 </Button>
               </Grid>
             )}
