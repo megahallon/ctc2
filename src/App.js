@@ -293,8 +293,10 @@ class App extends React.Component {
     this.setState({symbolPage: event.target.value},
       () => {
         if (+this.state.symbolPage > 0)
-          for (let i = 0; i < 9; ++i)
-            DrawSymbol(this.symbolRef[i].current.children[0], this.state.symbolPage, i + 1);
+          for (let i = 0; i < 9; ++i) {
+            this.symbolRef[i].current.children[0].innerHTML = '';
+            DrawSymbol(this.symbolRef[i].current.children[0], this.state.symbolPage, i + 1, 30);
+          }
       });
     DrawSetSymbolPage(+event.target.value);
   }
@@ -327,32 +329,37 @@ class App extends React.Component {
     );
   }
 
-  render() {
+  colorGrid() {
+    return DrawColors.map((color, index) =>
+      <Grid key={index} item xs={4}>
+        <Button variant="outlined" onClick={() => DrawSetColor(index)}>
+          <div style={{border: "1px solid black", background: color, width: "30px", height: "30px"}}/>
+        </Button>
+      </Grid>
+    );
+  }
+
+  renderSolveMode() {
     let buttons = [
       ["normal", "Normal"],
       ["center", "Center"],
       ["corner", "Corner"],
       ["color", "Color"]
     ];
-
     return (
       <Box display="flex" flexDirection="row">
-        <UrlDialog text={this.state.dialogText} open={this.state.dialogOpen} onClose={() => this.setState({dialogOpen: false})}/>
-        {this.state.solveMode && this.timerBox()}
-        {!this.state.solveMode && this.settingLeftBox()}
+        {this.timerBox()}
         <Box display="flex">
           <div id="canvas" ref={this.canvasRef}></div>
         </Box>
         <Box minWidth="250px" maxWidth="250px">
-          {this.state.solveMode &&
-            <Box margin="30px">
-              <ButtonGroup fullWidth={true} size="large" variant="contained" orientation="vertical">
-                {buttons.map((b) => (
-                  <Button key={b[0]} color={this.state.mode === b[0] ? "primary" : "default"} onClick={(e) => this.setMode(b[0])}>{b[1]}</Button>
-                ))}
-              </ButtonGroup>
-            </Box>
-          }
+          <Box margin="30px">
+            <ButtonGroup fullWidth={true} size="large" variant="contained" orientation="vertical">
+              {buttons.map(b =>
+                <Button key={b[0]} color={this.state.mode === b[0] ? "primary" : "default"} onClick={(e) => this.setMode(b[0])}>{b[1]}</Button>
+              )}
+            </ButtonGroup>
+          </Box>
           <Box margin="30px">
             <ButtonGroup fullWidth={true} size="large" variant="contained" orientation="vertical">
               <Button onClick={DrawReset}>Reset</Button>
@@ -363,7 +370,45 @@ class App extends React.Component {
           </Box>
           <Box margin="30px">
             <Grid container>
-            {(!this.state.solveMode && this.state.mode !== "color") && DrawColors.map((color, index) =>
+              {this.state.mode === "color" && this.colorGrid()}
+              {this.state.mode !== "color" && [...Array(9).keys()].map(index =>
+                <Grid key={index} item xs={4}>
+                  <Button variant="outlined" onClick={() => DrawSetNumber(index + 1)}>
+                  <div style={{fontSize: "20px"}}>
+                    {index + 1}
+                  </div>
+                  </Button>
+                </Grid>
+              )}
+            </Grid>
+          </Box>
+        </Box>
+      </Box>
+    );
+  }
+
+  renderSetMode() {
+    let pages = ['Numbers', 'Circles', 'Arrows', 'Arrows 2', 'Misc'];
+
+    return (
+      <Box display="flex" flexDirection="row">
+        <UrlDialog text={this.state.dialogText} open={this.state.dialogOpen} onClose={() => this.setState({dialogOpen: false})}/>
+        {this.settingLeftBox()}
+        <Box display="flex">
+          <div id="canvas" ref={this.canvasRef}></div>
+        </Box>
+        <Box minWidth="250px" maxWidth="250px">
+          <Box margin="30px">
+            <ButtonGroup fullWidth={true} size="large" variant="contained" orientation="vertical">
+              <Button onClick={DrawReset}>Reset</Button>
+              <Button onClick={DrawCheck}>Check</Button>
+              <Button onClick={DrawUndo}>Undo</Button>
+              <Button onClick={DrawDelete}>Delete</Button>
+            </ButtonGroup>
+          </Box>
+          <Box margin="30px">
+            <Grid container>
+            {this.state.mode !== "color" && DrawColors.map((color, index) =>
               <Grid key={index} item xs={4}>
                 <Button variant={this.state.color === index ? "contained" : "outlined"} onClick={() => {
                   this.setState({color: index}); DrawSetColor(index)}}>
@@ -371,22 +416,13 @@ class App extends React.Component {
                 </Button>
               </Grid>
             )}
-            {this.state.mode === "color" && DrawColors.map((color, index) =>
-              <Grid key={index} item xs={4}>
-                <Button variant="outlined" onClick={() => DrawSetColor(index)}>
-                  <div style={{border: "1px solid black", background: color, width: "30px", height: "30px"}}/>
-                </Button>
-              </Grid>
-            )}
-            {!this.state.solveMode &&
+            {this.state.mode === "color" && this.colorGrid()}
+            {this.state.mode === "number" &&
             <FormControl fullWidth={true}>
-              <InputLabel shrink id="numberstyle-label">
-                Symbol
-              </InputLabel>
-              <Select labelId="symbolpage-label" fullWidth={true} value={this.state.symbolPage}
-                      onChange={this.setSymbolPage}>
-                <MenuItem value="0">Numbers</MenuItem>
-                <MenuItem value="1">Circles</MenuItem>
+              <Select fullWidth={true} value={this.state.symbolPage} onChange={this.setSymbolPage}>
+                {pages.map((p, i) =>
+                  <MenuItem key={p} value={i}>{p}</MenuItem>
+                )}
               </Select>
             </FormControl>
             }
@@ -394,14 +430,12 @@ class App extends React.Component {
               <Grid key={index} item xs={4}>
                 <Button variant="outlined" onClick={() => DrawSetNumber(index + 1)}>
                 {+this.state.symbolPage === 0 &&
-                <div style={{fontSize: "20px"}}>
-                  {index + 1}
-                </div>
+                  <div style={{fontSize: "20px"}}>{index + 1}</div>
                 }
                 {+this.state.symbolPage > 0 &&
-                <div ref={this.symbolRef[index]}>
-                <div style={{width: "30px", height: "30px"}}></div>
-                </div>
+                  <div ref={this.symbolRef[index]}>
+                    <div style={{width: "30px", height: "30px"}}/>
+                  </div>
                 }
                 </Button>
               </Grid>
@@ -411,6 +445,13 @@ class App extends React.Component {
         </Box>
       </Box>
     );
+  }
+
+  render() {
+    if (this.state.solveMode)
+      return this.renderSolveMode();
+    else
+      return this.renderSetMode();
   }
 }
 

@@ -1,5 +1,6 @@
-import { Circle, Container, Color, Line } from "pencil.js";
+import { Circle, Color, Line } from "pencil.js";
 import { DrawColors } from "./draw";
+import Arrow from "./arrow";
 
 function center_px(cell_size, p)
 {
@@ -69,17 +70,8 @@ export function draw_path(ctx, cells, style, color_index) {
     else if (style === "arrowcircle" || style === "arrow") {
       let strokeWidth = cell_size * 0.07;
       if (points.length > 1) {
-        let p1 = points[points.length - 1];
-        let p2 = points[points.length - 2];
-        let dx = p2.x - p1.x;
-        let dy = p2.y - p1.y;
-        let cs = cell_size / 4;
-        let arrow = new Container();
-        arrow.position = {x: p1.x + start_px[0], y: p1.y + start_px[1]};
-        arrow.options.rotation = 0.5 + (Math.atan2(dy, dx) / (2 * Math.PI));
-        let arrow_line = new Line({x: -cs, y: -cs}, [{x: cs, y: cs}, {x: 0, y: cs * 2}],
-            {stroke: color, strokeWidth: strokeWidth, join: Line.joins.miter});
-        arrow.add(arrow_line);
+        let arrow = new Arrow(start_px, points.slice(1),
+          {stroke: color, strokeWidth: strokeWidth, arrow: cell_size * 0.3});
         objs.push(arrow);
       }
       let line = new Line(start_px, points.slice(1),

@@ -1,6 +1,7 @@
-import { Scene, Text, Circle, Rectangle, Component, Container, Line } from "pencil.js";
+import { Scene, Text, Rectangle, Component, Container, Line } from "pencil.js";
 import { draw_cage } from "./cage";
 import { draw_path } from "./path";
+import { draw_symbol } from "./symbols";
 import pako from "pako";
 import msgpack from "msgpack-lite";
 import { isEqual, range, findLastIndex } from 'lodash';
@@ -39,7 +40,7 @@ const mark_color = "rgba(247, 208, 56, 0.5)";
 export const DrawColors = [
     "rgba(0, 0, 0, 1)",
     "rgba(207, 207, 207, 0.5)",
-    "rgba(255, 255, 255, 0)",
+    "rgba(255, 255, 255, 1)",
     "rgba(163, 224, 72, 0.5)",
     "rgba(210, 59, 231, 0.5)",
     "rgba(235, 117, 50, 0.5)",
@@ -121,54 +122,36 @@ export function DrawSetSymbolPage(page)
     symbol_page = page;
 }
 
-export function DrawSymbol(element, page, num)
-{
-    let sc = new Scene(element);
-    set_symbol(sc, "#" + page + num);
-    sc.render();
-}
-
-function set_symbol(container, str)
+function set_symbol(container, str, color, _size)
 {
     let text;
-    let size;
+    let size = _size;
     if (container.normal) {
         size = cell_size;
         text = container.normal;
-        container = container.cont;
+        container = container.symcont;
+    }
+    else if (size > 0) {
+        // Symbol page
+        color = "gray";
     }
     else {
         size = boundary_size;
         text = container.text;
     }
-    let cx = size / 2;
-    let cy = size / 2;
-    if (container.symbol)
-        container.remove(container.symbol);
     if (str[0] === "#") {
-        //let page = +str.substr(1, 1)
-        let symbol = +str.substr(2, 1);
-        container.symboltext = str;
-        if (container.symbol)
-            container.remove(container.symbol);
-        if (symbol === 1) {
-            // black circle
-            let circle = new Circle([cx, cy], 0.8 * size / 2,
-                {fill: DrawColors[current_color], stroke: "black", strokeWidth: 2});
-            container.symbol = circle;
-            container.add(circle);
-        }
-        if (symbol === 2) {
-            // white circle
-            let circle = new Circle([cx, cy], 0.8 * size / 2,
-                {fill: "white", stroke: "black", strokeWidth: 2});
-            container.symbol = circle;
-            container.add(circle);
-        }
+        draw_symbol(container, str, color, size);
     }
     else {
         text.text = str;
     }
+}
+
+export function DrawSymbol(element, page, num, size)
+{
+    let sc = new Scene(element);
+    set_symbol(sc, "#" + page + num, current_color, size);
+    sc.render();
 }
 
 function _set_cell(lock, pos, mode, color, newtext)
@@ -200,6 +183,15 @@ function _set_cell(lock, pos, mode, color, newtext)
         m.corner.forEach(t => t.text = "");
         m.side.forEach(t => t.text = "");
         m.r_color.options.fill = null;
+        if (lock) {
+            m.r_color_set.options.fill = null;
+            m.fill = -1;
+            if (m.symcont.symbol) {
+                m.symcont.remove(m.symcont.symbol);
+                m.symcont.symbol = null;
+            }
+            m.lock_type = 0;
+        }
     }
     else if (b) {
         if (!b.text) {
@@ -207,7 +199,7 @@ function _set_cell(lock, pos, mode, color, newtext)
             b.text.options.fontSize = cell_size * 0.3;
             b.add(b.text);
         }
-        set_symbol(b, newtext);
+        set_symbol(b, newtext, color);
     }
     else if (mode === "normal") {
         if (!lock) {
@@ -215,19 +207,21 @@ function _set_cell(lock, pos, mode, color, newtext)
         }
         else {
             m.lock_type = (newtext !== "") ? lock_normal : 0;
-            m.normal.options.fill = DrawColors[color];
-            m.color = color;
+            if (newtext[0] != "#") {
+              m.normal.options.fill = DrawColors[color];
+              m.color = color;
+            }
         }
-        if (!m.main_grid && newtext !== "")
-            m.normal.text += newtext;
-        else
-            set_symbol(m, newtext);
-        const meas = Text.measure(m.normal.text, m.normal.text.options);
-        m.normal.position.x = (cell_size - 2.5 * meas.width) / 2;
-        m.normal.position.y = cell_size * 0.15;
-        m.center.text = "";
-        m.corner.forEach(t => { t.text = ""; });
-        m.side.forEach(t => { t.text = ""; });
+        // multinum && newtext !== "" m.normal.text += newtext
+        set_symbol(m, newtext, color);
+        if (newtext[0] != "#") {
+          const meas = Text.measure(m.normal.text, m.normal.text.options);
+          m.normal.position.x = (cell_size - 2.5 * meas.width) / 2;
+          m.normal.position.y = cell_size * 0.15;
+          m.center.text = "";
+          m.corner.forEach(t => { t.text = ""; });
+          m.side.forEach(t => { t.text = ""; });
+        }
     }
     else if (mode === "center" && m.normal.text === "") {
         let current = m.center.text;
@@ -304,12 +298,17 @@ export function DrawSetNumber(number) {
   let symbol = number;
   if (symbol_page > 0)
     symbol = "#" + symbol_page + number;
-  each_mark(m => {
-      set_cell([m.x, m.y], current_mode, current_color, symbol);
-      ++count;
-  });
-  if (count > 1)
-    undo_stack.push({mode: 'group', count: count});
+  if (boundary) {
+      set_cell(boundary, "boundary", current_color, symbol);
+  }
+  else {
+      each_mark(m => {
+          set_cell([m.x, m.y], current_mode, current_color, symbol);
+          ++count;
+      });
+      if (count > 1)
+          undo_stack.push({mode: 'group', count: count});
+  }
   scene.render();
 }
 
@@ -344,6 +343,9 @@ function keydown(event) {
           newtext = "#" + symbol_page + newtext;
     }
     else if (event.key >= "a" && event.key <= "z" && !solve_mode) {
+        newtext = event.key;
+    }
+    else if (event.key >= "A" && event.key <= "Z" && !solve_mode) {
         newtext = event.key;
     }
     else if (event.key.startsWith("Arrow") && cursor) {
@@ -671,8 +673,12 @@ export function DrawGenerateUrl(description)
 
     each_cell(m => {
         let pos = [m.x, m.y];
-        if (m.lock_type === lock_normal)
-            out.cells.push([pos, m.lock_type, m.normal.text, m.color]);
+        if (m.lock_type === lock_normal) {
+            if (m.normal.text !== "")
+                out.cells.push([pos, m.lock_type, m.normal.text, m.color]);
+            if (m.symcont.symboltext !== "" && m.symcont.symboltext !== undefined)
+                out.cells.push([pos, m.lock_type, m.symcont.symboltext, m.symcont.symbolcolor]);
+        }
         if (m.lock_type === lock_corner)
             out.cells.push([pos, m.lock_type, m.cage_corner.text, m.color]);
         if (m.fill >= 0) {
@@ -680,7 +686,7 @@ export function DrawGenerateUrl(description)
         }
         m.boundary.forEach((b, i) => {
             if (b.symboltext)
-                out.cells.push([[m.x, m.y, i], lock_boundary, b.symboltext, null]);
+                out.cells.push([[m.x, m.y, i], lock_boundary, b.symboltext, b.symbolcolor]);
         });
     });
 
@@ -767,6 +773,10 @@ export function DrawReset() {
         set_cell([m.x, m.y], "reset", null, "");
     });
 
+    if (!solve_mode) {
+      stuff.forEach(s => s.objs.forEach(l => l.parent.remove(l)));
+      stuff = [];
+    }
     scene.render();
 }
 
@@ -919,6 +929,7 @@ export function DrawRender(code, wrapper, state) {
               && x < (grid_w - grid_right) && y < (grid_h - grid_bottom));
             let ocont = new Container([xp, yp]);
             let cont = new Container([xp, yp]);
+            let symcont = new Container([xp, yp]);
             options.strokeWidth = 0;
             let r = new Rectangle([0, 0], cs, cs, options);
             let edge_right = new Rectangle([0, 0], cs, cs, options);
@@ -1025,7 +1036,7 @@ export function DrawRender(code, wrapper, state) {
             cont.on("mousemove", (event) => move(event, x, y));
             r_hover.on("hover", () => inner_hover(x, y));
             matrix[y][x] = {
-                x: x, y: y, pos: [xp, yp], cont: cont, rect: r,
+                x: x, y: y, pos: [xp, yp], symcont: symcont, cont: cont, rect: r,
                 boundary: boundary,
                 fill: -1, color: null,
                 normal: normal, center: center,
@@ -1040,7 +1051,8 @@ export function DrawRender(code, wrapper, state) {
                 r: r, r_color_set: r_color_set,
                 r_color: r_color, main_grid: main_grid
             };
-            underlay.add(cont);
+            //underlay2.add(symcont);
+            underlay.add(symcont, cont);
             ocont.add(...corner, ...boundary);
             overlay.add(ocont);
         }
@@ -1053,6 +1065,7 @@ export function DrawRender(code, wrapper, state) {
     ctx.underlay2 = underlay2;
     ctx.cell_size = cell_size;
     ctx.corner_offset = corner_offset;
+    ctx.boundary_size = boundary_size;
     ctx.each_cell = each_cell;
     ctx.get = get;
 
