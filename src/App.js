@@ -122,7 +122,10 @@ class App extends React.Component {
   }
 
   setMode = (mode) => {
-    this.setState({mode: mode}, () => DrawSetMode(this.state));
+    let b = document.getElementById('button' + mode);
+    if (b)
+      b.focus();
+    this.setState({mode: mode}, () => { ; DrawSetMode(this.state); });
   }
 
   setStyle = (style, value) => {
@@ -145,6 +148,7 @@ class App extends React.Component {
                   onChange={(event) => this.setStyle("numberStyle", event.target.value)}>
             <MenuItem value="normal">Normal</MenuItem>
             <MenuItem value="corner">Corner</MenuItem>
+            <MenuItem value="side">Side</MenuItem>
             <MenuItem value="boundary">Boundary</MenuItem>
           </Select>
         </FormControl>
@@ -238,7 +242,7 @@ class App extends React.Component {
           </ButtonGroup>
         </Box>
         <Box margin="30px">
-          <Select fullWidth={true} value={this.state.settingsMode} onChange={(event) => this.setState({settingsMode:     event.target.value})}>
+          <Select fullWidth={true} value={this.state.settingsMode} onChange={(event) => this.setState({settingsMode: event.target.value})}>
             <MenuItem value="size">Size</MenuItem>
             <MenuItem value="margins">Margins</MenuItem>
             <MenuItem value="grid">Grid</MenuItem>
@@ -267,7 +271,7 @@ class App extends React.Component {
           <Typography>Dashed</Typography>
           <Switch checked={this.state.gridDashed} onChange={(e) => {this.setGridState("gridDashed", e.target.checked)}}/>
           <Typography>Diagonals</Typography>
-          <Switch checked={this.state.gridDiagonals} onChange={(e) => {this.setGridState("gridDiagonals",   e.target.checked)}}/  >
+          <Switch checked={this.state.gridDiagonals} onChange={(e) => {this.setGridState("gridDiagonals", e.target.checked)}}/  >
         </Box>
         }
         { this.state.settingsMode === "description" &&
@@ -287,6 +291,7 @@ class App extends React.Component {
   setGrid = () => {
     // Can't use ref as element is replaced
     DrawRender(code, document.getElementById('canvas'), this.state);
+    DrawSetMode(this.state);
   }
 
   setSymbolPage = (event) => {
@@ -303,7 +308,10 @@ class App extends React.Component {
 
   setGridState = (state, value) => {
     // Can't use ref as element is replaced
-    this.setState({[state]: value}, () => DrawRender(code, document.getElementById('canvas'), this.state));
+    this.setState({[state]: value}, () => {
+      DrawRender(code, document.getElementById('canvas'), this.state);
+      DrawSetMode(this.state);
+    });
   }
 
   sizeSlider(type) {
@@ -329,8 +337,8 @@ class App extends React.Component {
     );
   }
 
-  colorGrid() {
-    return DrawColors.map((color, index) =>
+  colorGrid(num) {
+    return DrawColors.slice(0, num).map((color, index) =>
       <Grid key={index} item xs={4}>
         <Button variant="outlined" onClick={() => DrawSetColor(index)}>
           <div style={{border: "1px solid black", background: color, width: "30px", height: "30px"}}/>
@@ -356,7 +364,7 @@ class App extends React.Component {
           <Box margin="30px">
             <ButtonGroup fullWidth={true} size="large" variant="contained" orientation="vertical">
               {buttons.map(b =>
-                <Button key={b[0]} color={this.state.mode === b[0] ? "primary" : "default"} onClick={(e) => this.setMode(b[0])}>{b[1]}</Button>
+                <Button id={"button" + b[0]} key={b[0]} color={this.state.mode === b[0] ? "primary" : "default"} onClick={() => this.setMode(b[0])}>{b[1]}</Button>
               )}
             </ButtonGroup>
           </Box>
@@ -370,7 +378,7 @@ class App extends React.Component {
           </Box>
           <Box margin="30px">
             <Grid container>
-              {this.state.mode === "color" && this.colorGrid()}
+              {this.state.mode === "color" && this.colorGrid(9)}
               {this.state.mode !== "color" && [...Array(9).keys()].map(index =>
                 <Grid key={index} item xs={4}>
                   <Button variant="outlined" onClick={() => DrawSetNumber(index + 1)}>
@@ -408,10 +416,18 @@ class App extends React.Component {
           </Box>
           <Box margin="30px">
             <Grid container>
-            {this.state.mode !== "color" && DrawColors.map((color, index) =>
+            {this.state.mode !== "color" && DrawColors.slice(0, 9).map((color, index) =>
               <Grid key={index} item xs={4}>
                 <Button variant={this.state.color === index ? "contained" : "outlined"} onClick={() => {
                   this.setState({color: index}); DrawSetColor(index)}}>
+                  <div style={{border: "1px solid black", background: color, width: "30px", height: "30px"}}/>
+                </Button>
+              </Grid>
+            )}
+            {this.state.mode !== "color" && DrawColors.slice(9).map((color, index) =>
+              <Grid key={index} item xs={4}>
+                <Button variant={this.state.color === (index + 9) ? "contained" : "outlined"} onClick={() => {
+                  this.setState({color: index + 9}); DrawSetColor(index + 9)}}>
                   <div style={{border: "1px solid black", background: color, width: "30px", height: "30px"}}/>
                 </Button>
               </Grid>
@@ -426,7 +442,7 @@ class App extends React.Component {
               </Select>
             </FormControl>
             }
-            {this.state.mode !== "color" && [...Array(9).keys()].map(index =>
+            {this.state.mode === "number" && [...Array(9).keys()].map(index =>
               <Grid key={index} item xs={4}>
                 <Button variant="outlined" onClick={() => DrawSetNumber(index + 1)}>
                 {+this.state.symbolPage === 0 &&

@@ -26,7 +26,6 @@ function draw_dash_cage(ctx, cells)
     ctx.each_cell(m => {
         let x = m.x;
         let y = m.y;
-        console.log(x, y);
         if (!get_cage(x, y)) return;
         let up = get_cage(x, y - 1);
         let down = get_cage(x, y + 1);

@@ -1,5 +1,5 @@
 import Arrow from "./arrow";
-import { Circle, Star, Polygon } from "pencil.js";
+import { Circle, Star, Polygon, Rectangle, Container, Text } from "pencil.js";
 import { DrawColors } from './draw';
 
 class DashCircle extends Circle {
@@ -9,15 +9,28 @@ class DashCircle extends Circle {
     }
 }
 
-export function draw_symbol(container, str, _color, size)
+export function draw_symbol(container, str, _color, size, bg)
 {
   let page = +str.substr(1, 1)
   let symbol = +str.substr(2, 1);
   let color = typeof _color === 'string' ? _color : DrawColors[_color];
   let cx = size / 2;
   let cy = size / 2;
-  let sym = null;
+  let sym;
 
+  if (str[0] !== "#")
+      page = 0;
+
+  if (page === 0) {
+      let textOptions = {
+          font: "sans-serif",
+          fontSize: size
+      };
+      sym = new Text([0, 0], str, textOptions);
+      const meas = Text.measure(str, textOptions);
+      sym.position.x = (size - meas.width) / 2;
+      bg = true;
+  }
   if (page === 1) {
       if (symbol === 1) {
           // circle fill
@@ -125,11 +138,21 @@ export function draw_symbol(container, str, _color, size)
       }
   }
   if (sym) {
-      if (container.symbol)
+      if (container.symbol) {
           container.remove(container.symbol);
+      }
+      if (bg) {
+          let bg = new Rectangle([0, 0], size, size, {fill: "white"});
+          let c = new Container([0, 0]);
+          c.add(bg, sym);
+          container.symbol = c;
+          container.add(c);
+      }
+      else {
+          container.symbol = sym;
+          container.add(sym);
+      }
       container.symboltext = str;
       container.symbolcolor = _color;
-      container.symbol = sym;
-      container.add(sym);
   }
 }
