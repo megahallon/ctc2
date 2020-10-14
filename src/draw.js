@@ -1,4 +1,12 @@
-import { Scene, Text, Rectangle, Component, Container, Line } from "pencil.js";
+import {
+  Scene,
+  Text,
+  Rectangle,
+  Component,
+  Container,
+  Line,
+  Circle,
+} from "pencil.js";
 import { draw_cage } from "./cage";
 import { draw_path } from "./path";
 import { draw_symbol } from "./symbols";
@@ -8,7 +16,6 @@ import { isEqual, range, findLastIndex } from "lodash";
 
 let ctx = {};
 let cell_size = 0;
-let boundary_size = null;
 let grid_w = null;
 let grid_h = null;
 let grid_left = 0;
@@ -18,7 +25,8 @@ let grid_right = 0;
 let grid_div_width = 0;
 let grid_div_height = 0;
 let grid_style = "normal";
-let grid_diagonals = false;
+let grid_left_diagonal = false;
+let grid_right_diagonal = false;
 let corner_offset = 0;
 let hover_offset = 0;
 let symbol_page = 0;
@@ -32,7 +40,8 @@ const lock_boundary = 3;
 
 const b_corner = 1;
 const b_side = 2;
-const b_boundary = 3;
+const b_quarter = 3;
+const b_boundary = 4;
 
 const transparent = "rgb(0, 0, 0, 0)";
 const sol_text_color = "rgb(29, 106, 229)";
@@ -542,6 +551,10 @@ export function DrawSetMode(state) {
     current_mode = "boundary";
     setBoundary(b_side);
   }
+  if (state.mode === "number" && state.numberStyle === "quarter") {
+    current_mode = "boundary";
+    setBoundary(b_quarter);
+  }
   if (state.mode === "number" && state.numberStyle === "boundary") {
     current_mode = "boundary";
     setBoundary(b_boundary);
@@ -552,7 +565,9 @@ export function DrawSetMode(state) {
 class DashLine extends Line {
   setContext(ctx) {
     super.setContext(ctx);
-    ctx.setLineDash([this.options.dash, this.options.dash]);
+    let dash1 = this.options.dash1;
+    if (dash1 === undefined) dash1 = this.options.dash;
+    ctx.setLineDash([this.options.dash, dash1]);
   }
 }
 
@@ -593,7 +608,8 @@ function load_size(base64) {
   grid_div_width = data.grid[7];
   grid_div_height = data.grid[8];
   grid_style = data.grid[9];
-  grid_diagonals = data.grid[10];
+  grid_left_diagonal = data.grid[10];
+  grid_right_diagonal = data.grid[11];
 }
 
 function load(base64) {
@@ -651,7 +667,8 @@ export function DrawGenerateUrl(description) {
       grid_div_width,
       grid_div_height,
       grid_style,
-      grid_diagonals,
+      grid_left_diagonal,
+      grid_right_diagonal,
     ],
     cells: [],
     stuff: stuff.map((e) => [e.type, e.style, e.color, e.cells]),
@@ -801,6 +818,7 @@ export function DrawUndo() {
 
 function add_grid(layer) {
   let dash = grid_style === "dash" ? 4 : 0;
+  let dots = grid_style === "dots";
 
   let thin = {
     fill: null,
@@ -820,56 +838,159 @@ function add_grid(layer) {
   let frame_h = grid_h - grid_top - grid_bottom;
 
   grid_lines = [];
-  if (grid_diagonals) {
+  if (grid_left_diagonal || grid_right_diagonal) {
     let diagonal = {
       stroke: DrawColors[1],
       strokeWidth: 4,
     };
+    if (grid_left_diagonal)
+      grid_lines.push(
+        new Line(
+          [grid_left * cell_size, grid_top * cell_size],
+          [[frame_w * cell_size, frame_h * cell_size]],
+          diagonal
+        )
+      );
+    if (grid_right_diagonal)
+      grid_lines.push(
+        new Line(
+          [(grid_w - grid_right) * cell_size, grid_top * cell_size],
+          [[-frame_w * cell_size, frame_h * cell_size]],
+          diagonal
+        )
+      );
+  }
+
+  if (dots) {
+    let dsize = cell_size * 0.07;
+    for (let y = 0; y <= frame_h; ++y) {
+      for (let x = 0; x <= frame_w; ++x) {
+        grid_lines.push(
+          new Circle([grid_left + x * cell_size, grid_top + y * cell_size], dsize, {
+            fill: "black",
+          })
+        );
+      }
+    }
+  } else {
+    for (let x = 0; x <= frame_w; ++x) {
+      grid_lines.push(
+        new DashLine(
+          [(grid_left + x) * cell_size, grid_top * cell_size],
+          [[0, frame_h * cell_size]],
+          x % grid_div_width === 0 ? fat : thin
+        )
+      );
+    }
+    for (let y = 0; y <= frame_h; ++y) {
+      grid_lines.push(
+        new DashLine(
+          [grid_left * cell_size, (grid_top + y) * cell_size],
+          [[frame_w * cell_size, 0]],
+          y % grid_div_height === 0 ? fat : thin
+        )
+      );
+    }
+
     grid_lines.push(
-      new Line(
+      new Rectangle(
         [grid_left * cell_size, grid_top * cell_size],
-        [[frame_w * cell_size, frame_h * cell_size]],
-        diagonal
-      )
-    );
-    grid_lines.push(
-      new Line(
-        [(grid_w - grid_right) * cell_size, grid_top * cell_size],
-        [[-frame_w * cell_size, frame_h * cell_size]],
-        diagonal
+        frame_w * cell_size,
+        frame_h * cell_size,
+        fat
       )
     );
   }
-
-  for (let x = 0; x <= frame_w; ++x) {
-    grid_lines.push(
-      new DashLine(
-        [(grid_left + x) * cell_size, grid_top * cell_size],
-        [[0, frame_h * cell_size]],
-        x % grid_div_width === 0 ? fat : thin
-      )
-    );
-  }
-  for (let y = 0; y <= frame_h; ++y) {
-    grid_lines.push(
-      new DashLine(
-        [grid_left * cell_size, (grid_top + y) * cell_size],
-        [[frame_w * cell_size, 0]],
-        y % grid_div_height === 0 ? fat : thin
-      )
-    );
-  }
-
-  grid_lines.push(
-    new Rectangle(
-      [grid_left * cell_size, grid_top * cell_size],
-      frame_w * cell_size,
-      frame_h * cell_size,
-      fat
-    )
-  );
 
   layer.add(...grid_lines);
+}
+
+function addBoundaries(x, y, boundary) {
+  const boptions = {
+    fill: "rgba(255, 255, 255, 0)",
+    strokeWidth: 0,
+    cursor: Component.cursors.pointer,
+  };
+
+  let bc = cell_size * 0.03;
+  let cs = cell_size;
+  let bsize = cell_size * 0.3;
+  let qsize = cell_size * 0.4;
+
+  // Corners
+  boundary.push(
+    new Rectangle([bc, bc], bsize, bsize, boptions),
+    new Rectangle([cs - bsize - bc, bc], bsize, bsize, boptions),
+    new Rectangle([bc, cs - bsize - bc], bsize, bsize, boptions),
+    new Rectangle([cs - bsize - bc, cs - bsize - bc], bsize, bsize, boptions)
+  );
+
+  // Sides
+  boundary.push(
+    new Rectangle([bc, cs / 2 - bsize / 2], bsize, bsize, boptions),
+    new Rectangle([cs / 2 - bsize / 2, bc], bsize, bsize, boptions),
+    new Rectangle(
+      [cs - bsize - bc, cs / 2 - bsize / 2],
+      bsize,
+      bsize,
+      boptions
+    ),
+    new Rectangle([cs / 2 - bsize / 2, cs - bsize - bc], bsize, bsize, boptions)
+  );
+
+  // Quarter
+  let qc = cell_size * 0.05;
+  boundary.push(
+    new Rectangle([qc, qc], qsize, qsize, boptions),
+    new Rectangle([cs - qsize - qc, qc], qsize, qsize, boptions),
+    new Rectangle([qc, cs - qsize - qc], qsize, qsize, boptions),
+    new Rectangle([cs - qsize - qc, cs - qsize - qc], qsize, qsize, boptions)
+  );
+
+  // Boundaries
+  boundary.push(
+    new Rectangle([-bsize / 2, -bsize / 2], bsize, bsize, boptions),
+    new Rectangle([-bsize / 2, cs / 2 - bsize / 2], bsize, bsize, boptions),
+    new Rectangle([cs / 2 - bsize / 2, -bsize / 2], bsize, bsize, boptions)
+  );
+  if (x === grid_w - grid_right - 1) {
+    boundary.push(
+      new Rectangle([cs - bsize / 2, -bsize / 2], bsize, bsize, boptions),
+      new Rectangle(
+        [cs - bsize / 2, cs / 2 - bsize / 2],
+        bsize,
+        bsize,
+        boptions
+      )
+    );
+  }
+  if (y === grid_h - grid_bottom - 1) {
+    boundary.push(
+      new Rectangle([-bsize / 2, cs - bsize / 2], bsize, bsize, boptions),
+      new Rectangle(
+        [cs / 2 - bsize / 2, cs - bsize / 2],
+        bsize,
+        bsize,
+        boptions
+      ),
+      new Rectangle([cs - bsize / 2, cs - bsize / 2], bsize, bsize, boptions)
+    );
+  }
+  boundary.forEach((b, i) => {
+    if (i < 4) {
+      b.btype = b_corner;
+      b.bsize = bsize;
+    } else if (i < 8) {
+      b.btype = b_side;
+      b.bsize = bsize;
+    } else if (i < 12) {
+      b.btype = b_quarter;
+      b.bsize = qsize;
+    } else {
+      b.btype = b_boundary;
+      b.bsize = bsize;
+    }
+  });
 }
 
 export function DrawRender(code, wrapper, state) {
@@ -882,8 +1003,9 @@ export function DrawRender(code, wrapper, state) {
   grid_h = grid_top + state.height + grid_bottom;
   grid_div_width = state.gridDivWidth;
   grid_div_height = state.gridDivHeight;
-  grid_style = state.gridDashed ? "dash" : "normal";
-  grid_diagonals = state.gridDiagonals;
+  grid_style = state.gridStyle;
+  grid_left_diagonal = state.gridLeftDiagonal;
+  grid_right_diagonal = state.gridRightDiagonal;
 
   if (code) load_size(code);
 
@@ -908,11 +1030,6 @@ export function DrawRender(code, wrapper, state) {
     strokeWidth: 1,
     cursor: Component.cursors.pointer,
   };
-  const boptions = {
-    fill: "rgba(255, 255, 255, 0)",
-    strokeWidth: 0,
-    cursor: Component.cursors.pointer,
-  };
   const options_inner = {
     fill: "rgba(255, 255, 255, 0)",
     cursor: Component.cursors.pointer,
@@ -934,8 +1051,6 @@ export function DrawRender(code, wrapper, state) {
     matrix[y] = [];
   }
   let cs = cell_size;
-  boundary_size = cell_size * 0.3;
-  let bsize = boundary_size;
 
   for (let x = 0; x < grid_w; ++x) {
     for (let y = 0; y < grid_h; ++y) {
@@ -997,114 +1112,7 @@ export function DrawRender(code, wrapper, state) {
           if (i === 1) p[0] -= cs * 0.1;
           side.push(new Text(p, "", cornerTextOptions));
         });
-        let bc = cell_size * 0.03;
-        // Corners
-        boundary.push(new Rectangle([bc, bc], bsize, bsize, boptions));
-        boundary.push(
-          new Rectangle([cs - bsize - bc, bc], bsize, bsize, boptions)
-        );
-        boundary.push(
-          new Rectangle([bc, cs - bsize - bc], bsize, bsize, boptions)
-        );
-        boundary.push(
-          new Rectangle(
-            [cs - bsize - bc, cs - bsize - bc],
-            bsize,
-            bsize,
-            boptions
-          )
-        );
-
-        // Sides
-        boundary.push(
-          new Rectangle([bc, cs / 2 - bsize / 2], bsize, bsize, boptions)
-        );
-        boundary.push(
-          new Rectangle([cs / 2 - bsize / 2, bc], bsize, bsize, boptions)
-        );
-        boundary.push(
-          new Rectangle(
-            [cs - bsize - bc, cs / 2 - bsize / 2],
-            bsize,
-            bsize,
-            boptions
-          )
-        );
-        boundary.push(
-          new Rectangle(
-            [cs / 2 - bsize / 2, cs - bsize - bc],
-            bsize,
-            bsize,
-            boptions
-          )
-        );
-
-        // Boundaries
-        boundary.push(
-          new Rectangle([-bsize / 2, -bsize / 2], bsize, bsize, boptions)
-        );
-        boundary.push(
-          new Rectangle(
-            [-bsize / 2, cs / 2 - bsize / 2],
-            bsize,
-            bsize,
-            boptions
-          )
-        );
-        boundary.push(
-          new Rectangle(
-            [cs / 2 - bsize / 2, -bsize / 2],
-            bsize,
-            bsize,
-            boptions
-          )
-        );
-        if (x === grid_w - grid_right - 1) {
-          boundary.push(
-            new Rectangle([cs - bsize / 2, -bsize / 2], bsize, bsize, boptions)
-          );
-          boundary.push(
-            new Rectangle(
-              [cs - bsize / 2, cs / 2 - bsize / 2],
-              bsize,
-              bsize,
-              boptions
-            )
-          );
-        }
-        if (y === grid_h - grid_bottom - 1) {
-          boundary.push(
-            new Rectangle([-bsize / 2, cs - bsize / 2], bsize, bsize, boptions)
-          );
-          boundary.push(
-            new Rectangle(
-              [cs / 2 - bsize / 2, cs - bsize / 2],
-              bsize,
-              bsize,
-              boptions
-            )
-          );
-          boundary.push(
-            new Rectangle(
-              [cs - bsize / 2, cs - bsize / 2],
-              bsize,
-              bsize,
-              boptions
-            )
-          );
-        }
-        boundary.forEach((b, i) => {
-          if (i < 4) {
-            b.btype = b_corner;
-            b.bsize = bsize;
-          } else if (i < 8) {
-            b.btype = b_side;
-            b.bsize = bsize;
-          } else {
-            b.btype = b_boundary;
-            b.bsize = bsize;
-          }
-        });
+        addBoundaries(x, y, boundary);
       }
 
       cont.add(r_color_set, r_color, r, r_hover, normal, center);
@@ -1147,7 +1155,6 @@ export function DrawRender(code, wrapper, state) {
   ctx.underlay2 = underlay2;
   ctx.cell_size = cell_size;
   ctx.corner_offset = corner_offset;
-  ctx.boundary_size = boundary_size;
   ctx.each_cell = each_cell;
   ctx.get = get;
 

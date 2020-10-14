@@ -85,8 +85,9 @@ class App extends React.Component {
       bottom: 0,
       gridDivWidth: 3,
       gridDivHeight: 3,
-      gridDashed: false,
-      gridDiagonals: false,
+      gridStyle: "lines",
+      gridLeftDiagonal: false,
+      gridRightDiagonal: false,
       mode: solve_mode ? "normal" : "number",
       numberStyle: "normal",
       cageStyle: "dash",
@@ -171,6 +172,7 @@ class App extends React.Component {
             <MenuItem value="normal">Normal</MenuItem>
             <MenuItem value="corner">Corner</MenuItem>
             <MenuItem value="side">Side</MenuItem>
+            <MenuItem value="quarter">Quarter</MenuItem>
             <MenuItem value="boundary">Boundary</MenuItem>
           </Select>
         </FormControl>
@@ -309,35 +311,51 @@ class App extends React.Component {
         </Box>
         {this.state.settingsMode === "size" && (
           <Box margin="30px" padding="10px" boxShadow={3}>
-            {this.sizeSlider("cellSize")}
-            {this.sizeSlider("width")}
-            {this.sizeSlider("height")}
+            {this.sizeSlider("cellSize", "Cell size", 32, 96, 5, true)}
+            {this.sizeSlider("width", "Width", 3, 30)}
+            {this.sizeSlider("height", "Height", 3, 30)}
           </Box>
         )}
         {this.state.settingsMode === "margins" && (
           <Box margin="30px" padding="10px" boxShadow={3}>
-            {this.sizeSlider("left")}
-            {this.sizeSlider("right")}
-            {this.sizeSlider("top")}
-            {this.sizeSlider("bottom")}
+            {this.sizeSlider("left", "Left")}
+            {this.sizeSlider("right", "Right")}
+            {this.sizeSlider("top", "Top")}
+            {this.sizeSlider("bottom", "Bottom")}
           </Box>
         )}
         {this.state.settingsMode === "grid" && (
           <Box margin="30px" padding="10px" boxShadow={3}>
-            {this.sizeSlider("gridDivWidth")}
-            {this.sizeSlider("gridDivHeight")}
-            <Typography>Dashed</Typography>
-            <Switch
-              checked={this.state.gridDashed}
-              onChange={(e) => {
-                this.setGridState("gridDashed", e.target.checked);
-              }}
-            />
+            {this.sizeSlider("gridDivWidth", "Grid divider width")}
+            {this.sizeSlider("gridDivHeight", "Grid divider height")}
+            <FormControl fullWidth={true}>
+              <InputLabel shrink id="gridstyle-label">
+                Style
+              </InputLabel>
+              <Select
+                labelId="gridstyle-label"
+                fullWidth={true}
+                value={this.state.gridStyle}
+                onChange={(event) =>
+                  this.setGridState("gridStyle", event.target.value)
+                }
+              >
+                <MenuItem value="lines">Lines</MenuItem>
+                <MenuItem value="dash">Dashed</MenuItem>
+                <MenuItem value="dots">Dots</MenuItem>
+              </Select>
+            </FormControl>
             <Typography>Diagonals</Typography>
             <Switch
-              checked={this.state.gridDiagonals}
+              checked={this.state.gridLeftDiagonal}
               onChange={(e) => {
-                this.setGridState("gridDiagonals", e.target.checked);
+                this.setGridState("gridLeftDiagonal", e.target.checked);
+              }}
+            />
+            <Switch
+              checked={this.state.gridRightDiagonal}
+              onChange={(e) => {
+                this.setGridState("gridRightDiagonal", e.target.checked);
               }}
             />
           </Box>
@@ -390,47 +408,18 @@ class App extends React.Component {
     });
   };
 
-  sizeSlider(type) {
-    let t = {
-      cellSize: { label: "Cell size", min: 32, max: 96, step: 4, marks: true },
-      width: { label: "Width", min: 3, max: 30, step: 1, marks: false },
-      height: { label: "Height", min: 3, max: 30, step: 1, marks: false },
-      gridDivWidth: {
-        label: "Grid divider width",
-        min: 0,
-        max: 10,
-        step: 1,
-        marks: false,
-      },
-      gridDivHeight: {
-        label: "Grid divider height",
-        min: 0,
-        max: 10,
-        step: 1,
-        marks: false,
-      },
-      left: { label: "Left margin", min: 0, max: 10, step: 1, marks: false },
-      right: { label: "Right margin", min: 0, max: 10, step: 1, marks: false },
-      top: { label: "Top margin", min: 0, max: 10, step: 1, marks: false },
-      bottom: {
-        label: "Bottom margin",
-        min: 0,
-        max: 10,
-        step: 1,
-        marks: false,
-      },
-    }[type];
+  sizeSlider(type, label, min = 0, max = 10, step = 1, marks = false) {
     return (
       <Box>
         <Typography>
-          {t.label}: {this.state[type]}
+          {label}: {this.state[type]}
         </Typography>
         <Slider
           value={this.state[type]}
-          min={t.min}
-          max={t.max}
-          step={t.step}
-          marks={t.marks}
+          min={min}
+          max={max}
+          step={step}
+          marks={marks}
           id={type}
           onChange={this.handleChange}
           onChangeCommitted={this.setGrid}
@@ -523,9 +512,78 @@ class App extends React.Component {
     );
   }
 
-  renderSetMode() {
-    let pages = ["Numbers", "Circles", "Arrows", "Arrows 2", "Misc"];
+  colorSelect() {
+    return DrawColors.map((color, index) => (
+      <Grid key={index} item xs={4}>
+        <Button
+          variant={this.state.color === index ? "contained" : "outlined"}
+          onClick={() => {
+            this.setState({ color: index });
+            DrawSetColor(index);
+          }}
+        >
+          <div
+            style={{
+              border: "1px solid black",
+              background: color,
+              width: "30px",
+              height: "30px",
+            }}
+          />
+        </Button>
+      </Grid>
+    ));
+  }
 
+  pageSelect() {
+    const pages = ["Numbers", "Circles", "Arrows", "Arrows 2", "Misc"];
+
+    return (
+      <FormControl fullWidth={true}>
+        <Select
+          fullWidth={true}
+          value={this.state.symbolPage}
+          onChange={this.setSymbolPage}
+        >
+          {pages.map((p, i) => (
+            <MenuItem key={p} value={i}>
+              {p}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+    );
+  }
+
+  symbolGrid() {
+    return [...Array(9).keys()].map((index) => (
+      <Grid key={index} item xs={4}>
+        <Button variant="outlined" onClick={() => DrawSetNumber(index + 1)}>
+          {+this.state.symbolPage === 0 && (
+            <div style={{ fontSize: "20px" }}>{index + 1}</div>
+          )}
+          {+this.state.symbolPage > 0 && (
+            <div ref={this.symbolRef[index]}>
+              <div style={{ width: "30px", height: "30px" }} />
+            </div>
+          )}
+        </Button>
+      </Grid>
+    ));
+  }
+
+  settingRight() {
+    return (
+      <Grid container>
+        {this.state.mode !== "color" && this.colorSelect()}
+        {this.state.mode === "color" && this.colorGrid()}
+        {this.state.mode === "number" && this.pageSelect()}
+        {this.state.mode === "number" && this.symbolGrid()}
+      </Grid>
+    );
+  }
+
+  renderSetMode() {
     return (
       <Box display="flex" flexDirection="row">
         <UrlDialog
@@ -551,100 +609,14 @@ class App extends React.Component {
               <Button onClick={DrawDelete}>Delete</Button>
             </ButtonGroup>
           </Box>
-          <Box margin="30px">
-            <Grid container>
-              {this.state.mode !== "color" &&
-                DrawColors.slice(0, 9).map((color, index) => (
-                  <Grid key={index} item xs={4}>
-                    <Button
-                      variant={
-                        this.state.color === index ? "contained" : "outlined"
-                      }
-                      onClick={() => {
-                        this.setState({ color: index });
-                        DrawSetColor(index);
-                      }}
-                    >
-                      <div
-                        style={{
-                          border: "1px solid black",
-                          background: color,
-                          width: "30px",
-                          height: "30px",
-                        }}
-                      />
-                    </Button>
-                  </Grid>
-                ))}
-              {this.state.mode !== "color" &&
-                DrawColors.slice(9).map((color, index) => (
-                  <Grid key={index} item xs={4}>
-                    <Button
-                      variant={
-                        this.state.color === index + 9
-                          ? "contained"
-                          : "outlined"
-                      }
-                      onClick={() => {
-                        this.setState({ color: index + 9 });
-                        DrawSetColor(index + 9);
-                      }}
-                    >
-                      <div
-                        style={{
-                          border: "1px solid black",
-                          background: color,
-                          width: "30px",
-                          height: "30px",
-                        }}
-                      />
-                    </Button>
-                  </Grid>
-                ))}
-              {this.state.mode === "color" && this.colorGrid()}
-              {this.state.mode === "number" && (
-                <FormControl fullWidth={true}>
-                  <Select
-                    fullWidth={true}
-                    value={this.state.symbolPage}
-                    onChange={this.setSymbolPage}
-                  >
-                    {pages.map((p, i) => (
-                      <MenuItem key={p} value={i}>
-                        {p}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              )}
-              {this.state.mode === "number" &&
-                [...Array(9).keys()].map((index) => (
-                  <Grid key={index} item xs={4}>
-                    <Button
-                      variant="outlined"
-                      onClick={() => DrawSetNumber(index + 1)}
-                    >
-                      {+this.state.symbolPage === 0 && (
-                        <div style={{ fontSize: "20px" }}>{index + 1}</div>
-                      )}
-                      {+this.state.symbolPage > 0 && (
-                        <div ref={this.symbolRef[index]}>
-                          <div style={{ width: "30px", height: "30px" }} />
-                        </div>
-                      )}
-                    </Button>
-                  </Grid>
-                ))}
-            </Grid>
-          </Box>
+          <Box margin="30px">{this.settingRight()}</Box>
         </Box>
       </Box>
     );
   }
 
   render() {
-    if (this.state.solveMode) return this.renderSolveMode();
-    else return this.renderSetMode();
+    return this.state.solveMode ? this.renderSolveMode() : this.renderSetMode();
   }
 }
 

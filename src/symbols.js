@@ -1,5 +1,5 @@
 import Arrow from "./arrow";
-import { Circle, Star, Polygon, Rectangle, Container, Text } from "pencil.js";
+import { Circle, Star, Polygon, Rectangle, Container, Text, Line } from "pencil.js";
 import { DrawColors } from "./draw";
 
 /*
@@ -46,11 +46,12 @@ export function draw_symbol(container, str, _color, size, bg) {
     let textOptions = {
       font: "sans-serif",
       fontSize: size,
+      fill: color
     };
     sym = new Text([0, 0], str, textOptions);
     const meas = Text.measure(str, textOptions);
     sym.position.x = (size - meas.width) / 2;
-    bg = true;
+    //bg = true;
   }
   if (page === 1) {
     if (symbol === 1) {
@@ -228,6 +229,11 @@ export function draw_symbol(container, str, _color, size, bg) {
         ],
         { fill: color }
       );
+    }
+    if (symbol === 3) {
+      sym = new Container([0, 0]);
+      sym.add(new Rectangle([0, 0], size, size, {fill: color}));
+      sym.add(new Line([0, 0], [[size, size]], {stroke: "white", strokeWidth: 3}));
     }
   }
   if (sym) {
