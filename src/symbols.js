@@ -36,15 +36,17 @@ export function draw_symbol(container, str, _color, size, bg) {
   if (str[0] !== "#") page = 0;
 
   if (page === 0) {
-    let textOptions = {
+    sym = new Text({
+      x: size / 4,
+      y: size * 0.1,
+      text: str,
       font: "sans-serif",
       fontSize: size,
       fill: color,
-    };
-    sym = new Text([0, 0], str, textOptions);
+    });
     /*const meas = Text.measure(str, textOptions);*/
-    const measure_width = 30;
-    sym.position.x = (size - measure_width) / 2;
+    //const measure_width = 30;
+    //sym.position.x = (size - measure_width) / 2;
     //bg = true;
   }
   if (page === 1) {

@@ -101,6 +101,9 @@ class App extends React.Component {
   }
 
   handleKeyDown = (event) => {
+    if (event.target.tagName === "TEXTAREA")
+      return;
+
     if (this.state.solveMode) {
       const cycle_modes = ["normal", "center", "corner", "color"];
       let i = "qwer".indexOf(event.key);
@@ -388,9 +391,8 @@ class App extends React.Component {
     this.setState({ symbolPage: event.target.value }, () => {
       if (+this.state.symbolPage > 0)
         for (let i = 0; i < 9; ++i) {
-          this.symbolRef[i].current.children[0].innerHTML = "";
           DrawSymbol(
-            this.symbolRef[i].current.children[0],
+            this.symbolRef[i].current,
             this.state.symbolPage,
             i + 1,
             30
@@ -562,11 +564,7 @@ class App extends React.Component {
           {+this.state.symbolPage === 0 && (
             <div style={{ fontSize: "20px" }}>{index + 1}</div>
           )}
-          {+this.state.symbolPage > 0 && (
-            <div ref={this.symbolRef[index]}>
-              <div style={{ width: "30px", height: "30px" }} />
-            </div>
-          )}
+          {+this.state.symbolPage > 0 && <div ref={this.symbolRef[index]} />}
         </Button>
       </Grid>
     ));

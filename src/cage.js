@@ -98,7 +98,7 @@ function draw_dash_cage(ctx, cells) {
       }
       add_line(start, end);
     }
-    l.forEach((e) => m.cont.add(e));
+    m.cont.add(...l);
     lines = lines.concat(l);
   });
   return lines;
@@ -155,7 +155,7 @@ function draw_edge_cage(ctx, cells) {
       let end = corner[2];
       add_line(start, end);
     }
-    l.forEach((e) => m.cont.add(e));
+    m.cont.add(...l);
     lines.push(...l);
   });
   return lines;
