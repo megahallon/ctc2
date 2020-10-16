@@ -1,5 +1,5 @@
-import Arrow from "./arrow";
-import { Circle, Star, Polygon, Rectangle, Container, Text, Line } from "pencil.js";
+//import Arrow from "./arrow";
+import { Circle, Star, Rect, Group, Text, Line, Arrow } from "konva";
 import { DrawColors } from "./draw";
 
 /*
@@ -25,13 +25,6 @@ class Text2 extends Text
 }
 */
 
-class DashCircle extends Circle {
-  setContext(ctx) {
-    super.setContext(ctx);
-    ctx.setLineDash([this.options.dash, this.options.dash]);
-  }
-}
-
 export function draw_symbol(container, str, _color, size, bg) {
   let page = +str.substr(1, 1);
   let symbol = +str.substr(2, 1);
@@ -46,17 +39,21 @@ export function draw_symbol(container, str, _color, size, bg) {
     let textOptions = {
       font: "sans-serif",
       fontSize: size,
-      fill: color
+      fill: color,
     };
     sym = new Text([0, 0], str, textOptions);
-    const meas = Text.measure(str, textOptions);
-    sym.position.x = (size - meas.width) / 2;
+    /*const meas = Text.measure(str, textOptions);*/
+    const measure_width = 30;
+    sym.position.x = (size - measure_width) / 2;
     //bg = true;
   }
   if (page === 1) {
     if (symbol === 1) {
       // circle fill
-      sym = new Circle([cx, cy], (0.8 * size) / 2, {
+      sym = new Circle({
+        x: cx,
+        y: cy,
+        radius: (0.8 * size) / 2,
         fill: color,
         stroke: "black",
         strokeWidth: 2,
@@ -64,7 +61,10 @@ export function draw_symbol(container, str, _color, size, bg) {
     }
     if (symbol === 2) {
       // circle outline
-      sym = new Circle([cx, cy], (0.8 * size) / 2, {
+      sym = new Circle({
+        x: cx,
+        y: cy,
+        radius: (0.8 * size) / 2,
         fill: "white",
         stroke: color,
         strokeWidth: 2,
@@ -72,177 +72,247 @@ export function draw_symbol(container, str, _color, size, bg) {
     }
     if (symbol === 3) {
       // dash circle fill
-      sym = new DashCircle([cx, cy], (0.8 * size) / 2, {
+      sym = new Circle({
+        x: cx,
+        y: cy,
+        radius: (0.8 * size) / 2,
         fill: color,
         stroke: "black",
         strokeWidth: 2,
-        dash: 4,
+        dash: [4],
       });
     }
     if (symbol === 4) {
       // dash circle outline
-      sym = new DashCircle([cx, cy], (0.8 * size) / 2, {
+      sym = new Circle({
+        x: cx,
+        y: cy,
+        radius: (0.8 * size) / 2,
         fill: "white",
         stroke: color,
         strokeWidth: 2,
-        dash: 4,
+        dash: [4],
       });
     }
   }
   if (page === 2) {
     let offset = size * 0.05;
     let offset2 = size * 0.15;
+    let aopt = {
+      stroke: "black",
+      strokeWidth: 3,
+      fill: color,
+      pointerLength: size * 0.3,
+      pointerWidth: size * 0.3,
+    };
     if (symbol === 1) {
-      sym = new Arrow([cx, cy], [[size - cx - offset, size - cy - offset]], {
-        stroke: color,
-        strokeWidth: 3,
-        arrow: size * 0.3,
+      sym = new Arrow({
+        x: cx,
+        y: cy,
+        points: [0, 0, size - cx - offset, size - cy - offset],
+        ...aopt,
       });
     }
     if (symbol === 2) {
-      sym = new Arrow([cx, cy], [[size - cx - offset, -cy + offset]], {
-        stroke: color,
-        strokeWidth: 3,
-        arrow: size * 0.3,
+      sym = new Arrow({
+        x: cx,
+        y: cy,
+        points: [0, 0, size - cx - offset, -cy + offset],
+        ...aopt,
       });
     }
     if (symbol === 3) {
-      sym = new Arrow([cx, cy], [[-cx + offset, -cy + offset]], {
-        stroke: color,
-        strokeWidth: 3,
-        arrow: size * 0.3,
+      sym = new Arrow({
+        x: cx,
+        y: cy,
+        points: [0, 0, -cx + offset, -cy + offset],
+        ...aopt,
       });
     }
     if (symbol === 4) {
-      sym = new Arrow([cx, cy], [[-cx + offset, size - cy - offset]], {
-        stroke: color,
-        strokeWidth: 3,
-        arrow: size * 0.3,
+      sym = new Arrow({
+        x: cx,
+        y: cy,
+        points: [0, 0, -cx + offset, size - cy - offset],
+        ...aopt,
       });
     }
     if (symbol === 5) {
-      sym = new Arrow([offset2, cy], [[size - offset2 * 2, 0]], {
-        stroke: color,
-        strokeWidth: 3,
-        arrow: size * 0.2,
+      sym = new Arrow({
+        x: offset2,
+        y: cy,
+        points: [0, 0, size - offset2 * 2, 0],
+        ...aopt,
       });
     }
     if (symbol === 6) {
-      sym = new Arrow([size - offset2, cy], [[-(size - offset2 * 2), 0]], {
-        stroke: color,
-        strokeWidth: 3,
-        arrow: size * 0.2,
+      sym = new Arrow({
+        x: size - offset2,
+        y: cy,
+        points: [0, 0, -(size - offset2 * 2), 0],
+        ...aopt,
       });
     }
     if (symbol === 7) {
-      sym = new Arrow([cx, offset2], [[0, size - offset2 * 2]], {
-        stroke: color,
-        strokeWidth: 3,
-        arrow: size * 0.2,
+      sym = new Arrow({
+        x: cx,
+        y: offset2,
+        points: [0, 0, 0, size - offset2 * 2],
+        ...aopt,
       });
     }
     if (symbol === 8) {
-      sym = new Arrow([cx, size - offset2], [[0, -(size - offset2 * 2)]], {
-        stroke: color,
-        strokeWidth: 3,
-        arrow: size * 0.2,
+      sym = new Arrow({
+        x: cx,
+        y: size - offset2,
+        points: [0, 0, 0, -(size - offset2 * 2)],
+        ...aopt,
       });
     }
   }
   if (page === 3) {
     // Yajilin style arrows
     let offset = size * 0.15;
+    let aopt = {
+      stroke: color,
+      strokeWidth: 2,
+      pointerLength: size * 0.1,
+      pointerWidth: size * 0.1,
+      fill: "black",
+    };
     if (symbol === 1) {
-      sym = new Arrow([offset, offset], [[size - offset * 2, 0]], {
-        stroke: color,
-        strokeWidth: 2,
-        arrow: size * 0.1,
-        arrowAngle: 45,
+      sym = new Arrow({
+        x: offset,
+        y: offset,
+        points: [0, 0, size - offset * 2, 0],
+        ...aopt,
       });
     }
     if (symbol === 2) {
-      sym = new Arrow([size - offset, offset], [[-(size - offset * 2), 0]], {
-        stroke: color,
-        strokeWidth: 2,
-        arrow: size * 0.1,
-        arrowAngle: 45,
+      sym = new Arrow({
+        x: size - offset,
+        y: offset,
+        points: [0, 0, -(size - offset * 2), 0],
+        ...aopt,
       });
     }
     if (symbol === 3) {
-      sym = new Arrow([size - offset, offset], [[0, size - offset * 2]], {
-        stroke: color,
-        strokeWidth: 2,
-        arrow: size * 0.1,
+      sym = new Arrow({
+        x: size - offset,
+        y: offset,
+        points: [0, 0, 0, size - offset * 2],
+        ...aopt,
       });
     }
     if (symbol === 4) {
-      sym = new Arrow(
-        [size - offset, size - offset],
-        [[0, -(size - offset * 2)]],
-        { stroke: color, strokeWidth: 2, arrow: size * 0.1 }
-      );
+      sym = new Arrow({
+        x: size - offset,
+        y: size - offset,
+        points: [0, 0, 0, -(size - offset * 2)],
+        ...aopt,
+      });
     }
     if (symbol === 5) {
-      sym = new Arrow(
-        [size - offset, size - offset],
-        [[-(size - offset * 2), 0]],
-        { stroke: color, strokeWidth: 2, arrow: size * 0.1 }
-      );
+      sym = new Arrow({
+        x: size - offset,
+        y: size - offset,
+        points: [0, 0, -(size - offset * 2), 0],
+        ...aopt,
+      });
     }
     if (symbol === 6) {
-      sym = new Arrow([offset, size - offset], [[size - offset * 2, 0]], {
-        stroke: color,
-        strokeWidth: 2,
-        arrow: size * 0.1,
+      sym = new Arrow({
+        x: offset,
+        y: size - offset,
+        points: [0, 0, size - offset * 2, 0],
+        ...aopt,
       });
     }
     if (symbol === 7) {
-      sym = new Arrow([offset, size - offset], [[0, -(size - offset * 2)]], {
-        stroke: color,
-        strokeWidth: 2,
-        arrow: size * 0.1,
+      sym = new Arrow({
+        x: offset,
+        y: size - offset,
+        points: [0, 0, 0, -(size - offset * 2)],
+        ...aopt,
       });
     }
     if (symbol === 8) {
-      sym = new Arrow([offset, offset], [[0, size - offset * 2]], {
-        stroke: color,
-        strokeWidth: 2,
-        arrow: size * 0.1,
+      sym = new Arrow({
+        x: offset,
+        y: offset,
+        points: [0, 0, 0, size - offset * 2],
+        ...aopt,
       });
     }
   }
   if (page === 4) {
     if (symbol === 1) {
-      sym = new Star([cx, cy], size * 0.4, 5, 0.4, {
+      sym = new Star({
+        x: cx,
+        y: cy,
+        innerRadius: size * 0.2,
+        outerRadius: size * 0.4,
+        numPoints: 5,
         fill: color,
         stroke: "black",
       });
     }
     if (symbol === 2) {
       let offset = size * 0.1;
-      sym = new Polygon(
-        [offset, offset],
-        [
-          [size - offset * 2, cy - offset],
-          [0, size - offset * 2],
-          [0, 0],
+      sym = new Line({
+        x: offset,
+        y: offset,
+        points: [
+          0,
+          0,
+          size - offset * 2,
+          cy - offset,
+          0,
+          size - offset * 2,
+          0,
+          0,
         ],
-        { fill: color }
-      );
+        fill: color,
+        closed: true,
+      });
     }
     if (symbol === 3) {
-      sym = new Container([0, 0]);
-      sym.add(new Rectangle([0, 0], size, size, {fill: color}));
-      sym.add(new Line([0, 0], [[size, size]], {stroke: "white", strokeWidth: 3}));
+      sym = new Group();
+      sym.add(new Rect({ width: size, height: size, fill: color }));
+      sym.add(
+        new Line({
+          points: [0, 0, size, size],
+          stroke: "white",
+          strokeWidth: 3,
+        })
+      );
+    }
+    if (symbol === 4) {
+      let o = size * 0.1;
+      sym = new Group();
+      sym.add(
+        new Line({
+          points: [o, o, size - o, size - o],
+          stroke: color,
+          strokeWidth: 3,
+        })
+      );
+      sym.add(
+        new Line({
+          points: [o, size - o, size - o, o],
+          stroke: color,
+          strokeWidth: 3,
+        })
+      );
     }
   }
   if (sym) {
     if (container.symbol) {
-      container.remove(container.symbol);
+      container.symbol.destroy();
     }
     if (bg) {
-      let bg = new Rectangle([0, 0], size, size, { fill: "white" });
-      let c = new Container([0, 0]);
+      let bg = new Rect({ width: size, height: size, fill: "white" });
+      let c = new Group();
       c.add(bg, sym);
       container.symbol = c;
       container.add(c);

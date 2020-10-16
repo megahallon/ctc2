@@ -280,6 +280,7 @@ class App extends React.Component {
             <MenuItem value="cage">Cage</MenuItem>
             <MenuItem value="path">Path</MenuItem>
             <MenuItem value="color">Color</MenuItem>
+            <MenuItem value="edge">Edge</MenuItem>
           </Select>
           {this.state.mode === "number" && this.numberStyleBox()}
           {this.state.mode === "cage" && this.cageStyleBox()}
@@ -379,8 +380,7 @@ class App extends React.Component {
   };
 
   setGrid = () => {
-    // Can't use ref as element is replaced
-    DrawRender(code, document.getElementById("canvas"), this.state);
+    DrawRender(code, this.canvasRef.current, this.state);
     DrawSetMode(this.state);
   };
 
@@ -401,9 +401,8 @@ class App extends React.Component {
   };
 
   setGridState = (state, value) => {
-    // Can't use ref as element is replaced
     this.setState({ [state]: value }, () => {
-      DrawRender(code, document.getElementById("canvas"), this.state);
+      DrawRender(code, this.canvasRef.current, this.state);
       DrawSetMode(this.state);
     });
   };
@@ -448,6 +447,7 @@ class App extends React.Component {
   renderSolveMode() {
     let buttons = [
       ["normal", "Normal"],
+      ["edgecross", "Edge+cross"],
       ["center", "Center"],
       ["corner", "Corner"],
       ["color", "Color"],

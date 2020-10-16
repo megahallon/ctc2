@@ -1,4 +1,5 @@
-import { Line } from "pencil.js";
+/*
+import { Line } from "konva";
 
 export default class Arrow extends Line {
     trace (path) {
@@ -29,3 +30,4 @@ export default class Arrow extends Line {
       };
     }
 }
+*/

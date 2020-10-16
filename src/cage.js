@@ -1,11 +1,4 @@
-import { Line } from "pencil.js";
-
-class DashLine extends Line {
-  setContext(ctx) {
-    super.setContext(ctx);
-    ctx.setLineDash([this.options.dash, this.options.dash]);
-  }
-}
+import { Line } from "konva";
 
 export function draw_cage(ctx, cells, style) {
   if (style === "dash") return draw_dash_cage(ctx, cells);
@@ -46,8 +39,8 @@ function draw_dash_cage(ctx, cells) {
     let l = [];
     let add_line = (start, end) => {
       l.push(
-        new DashLine(start, [[end[0] - start[0], end[1] - start[1]]], {
-          dash: 4,
+        new Line({points: [...start, ...end],
+          dash: [4],
           strokeWidth: 2,
           stroke: "black",
         })
@@ -105,7 +98,7 @@ function draw_dash_cage(ctx, cells) {
       }
       add_line(start, end);
     }
-    l.forEach((e) => m.r.add(e));
+    l.forEach((e) => m.cont.add(e));
     lines = lines.concat(l);
   });
   return lines;
@@ -135,7 +128,8 @@ function draw_edge_cage(ctx, cells) {
     let l = [];
     let add_line = (start, end) => {
       l.push(
-        new Line(start, [[end[0] - start[0], end[1] - start[1]]], {
+        new Line({
+          points: [...start, ...end],
           strokeWidth: 4,
           stroke: "black",
         })
@@ -161,7 +155,7 @@ function draw_edge_cage(ctx, cells) {
       let end = corner[2];
       add_line(start, end);
     }
-    l.forEach((e) => m.r.add(e));
+    l.forEach((e) => m.cont.add(e));
     lines.push(...l);
   });
   return lines;
