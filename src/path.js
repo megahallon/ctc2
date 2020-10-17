@@ -6,11 +6,14 @@ function center_px(cell_size, p) {
   return [p[0] * cell_size + cell_size / 2, p[1] * cell_size + cell_size / 2];
 }
 
-export function draw_path(ctx, cells, style, color_index) {
+export function draw_path(ctx, cells, style, color) {
   let cell_size = ctx.cell_size;
 
-  let _color = DrawColors[color_index];
-  let color = Util.colorToRGBA(_color);
+  if (typeof color === "number") {
+    color = DrawColors[color];
+  }
+  // Premultiply for thermo
+  color = Util.colorToRGBA(color);
   color.r = color.r * color.a + (1 - color.a) * 255;
   color.g = color.g * color.a + (1 - color.a) * 255;
   color.b = color.b * color.a + (1 - color.a) * 255;
@@ -38,7 +41,7 @@ export function draw_path(ctx, cells, style, color_index) {
       points: points,
       stroke: color,
       strokeWidth: strokeWidth,
-      lineCap: "round",
+      lineCap: "round"
     });
     objs.push(bulb, line);
   } else if (style === "thin") {
@@ -47,6 +50,7 @@ export function draw_path(ctx, cells, style, color_index) {
       points: points,
       stroke: color,
       strokeWidth: strokeWidth,
+      lineCap: "square"
     });
     objs.push(line);
   } else if (style === "fat") {
@@ -55,6 +59,7 @@ export function draw_path(ctx, cells, style, color_index) {
       points: points,
       stroke: color,
       strokeWidth: strokeWidth,
+      lineCap: "square"
     });
     objs.push(line);
   } else if (style === "roundborder") {

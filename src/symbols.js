@@ -98,10 +98,11 @@ export function draw_symbol(container, str, _color, size, bg) {
     }
   }
   if (page === 2) {
+    // Little killer style arrows
     let offset = size * 0.05;
     let offset2 = size * 0.15;
     let aopt = {
-      stroke: "black",
+      stroke: color,
       strokeWidth: 3,
       fill: color,
       pointerLength: size * 0.3,
@@ -177,10 +178,10 @@ export function draw_symbol(container, str, _color, size, bg) {
     let offset = size * 0.15;
     let aopt = {
       stroke: color,
+      fill: color,
       strokeWidth: 2,
       pointerLength: size * 0.1,
       pointerWidth: size * 0.1,
-      fill: "black",
     };
     if (symbol === 1) {
       sym = new Arrow({

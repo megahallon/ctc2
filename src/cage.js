@@ -1,16 +1,19 @@
 import { Line } from "konva";
+import { DrawColors } from "./draw";
 
-export function draw_cage(ctx, cells, style) {
-  if (style === "dash") return draw_dash_cage(ctx, cells);
-  if (style === "edge") return draw_edge_cage(ctx, cells);
+export function draw_cage(ctx, cells, style, color) {
+  if (style === "dash") return draw_dash_cage(ctx, cells, color);
+  if (style === "edge") return draw_edge_cage(ctx, cells, color);
 }
 
-function draw_dash_cage(ctx, cells) {
+function draw_dash_cage(ctx, cells, color) {
   let corner_offset = ctx.corner_offset;
   let cs = ctx.cell_size;
   let get_cage = (x, y) => {
     return cells.find((e) => e[0] === x && e[1] === y);
   };
+  if (typeof color === "number")
+    color = DrawColors[color];
 
   const corner_ext_pos = [
     [0, corner_offset],
@@ -42,7 +45,7 @@ function draw_dash_cage(ctx, cells) {
         new Line({points: [...start, ...end],
           dash: [4],
           strokeWidth: 2,
-          stroke: "black",
+          stroke: color,
         })
       );
     };
@@ -104,16 +107,19 @@ function draw_dash_cage(ctx, cells) {
   return lines;
 }
 
-function draw_edge_cage(ctx, cells) {
+function draw_edge_cage(ctx, cells, color) {
+  let cs = ctx.cell_size;
+  if (typeof color === "number")
+    color = DrawColors[color];
   let get_cage = (x, y) => {
     return cells.find((e) => e[0] === x && e[1] === y);
   };
 
   const corner = [
     [0, 0],
-    [ctx.cell_size, 0],
-    [ctx.cell_size, ctx.cell_size],
-    [0, ctx.cell_size],
+    [cs, 0],
+    [cs, cs],
+    [0, cs],
   ];
 
   let lines = [];
@@ -131,7 +137,8 @@ function draw_edge_cage(ctx, cells) {
         new Line({
           points: [...start, ...end],
           strokeWidth: 4,
-          stroke: "black",
+          stroke: color,
+          lineCap: "round"
         })
       );
     };
@@ -155,7 +162,8 @@ function draw_edge_cage(ctx, cells) {
       let end = corner[2];
       add_line(start, end);
     }
-    m.cont.add(...l);
+    if (l.length > 0)
+      m.cont.add(...l);
     lines.push(...l);
   });
   return lines;

@@ -450,6 +450,7 @@ class App extends React.Component {
     let buttons = [
       ["normal", "Normal"],
       ["edgecross", "Edge+cross"],
+      ["centerline", "Center line"],
       ["center", "Center"],
       ["corner", "Corner"],
       ["color", "Color"],
