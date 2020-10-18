@@ -1,4 +1,4 @@
-import { Stage, Layer, Text, Rect, Group, Line, Circle } from "konva";
+import { Stage, Layer, Text, Rect, Group, Line, Circle, Util } from "konva";
 import { draw_cage } from "./cage";
 import { draw_path } from "./path";
 import { draw_symbol } from "./symbols";
@@ -22,6 +22,8 @@ let grid_right_diagonal = false;
 let corner_offset = 0;
 let hover_offset = 0;
 let symbol_page = 0;
+let multi_digit = false;
+let number_bg = false;
 
 const type_path = 1;
 const type_cage = 2;
@@ -59,6 +61,19 @@ export const DrawColors = [
   "rgba(20, 20, 20, 0.5)",
 ];
 
+export function DrawColorPremul(color) {
+  if (typeof color === "number") {
+    color = DrawColors[color];
+  }
+  // Premultiply for thermo
+  color = Util.colorToRGBA(color);
+  color.r = color.r * color.a + (1 - color.a) * 255;
+  color.g = color.g * color.a + (1 - color.a) * 255;
+  color.b = color.b * color.a + (1 - color.a) * 255;
+  color.a = 1;
+  return `rgba(${color.r}, ${color.g}, ${color.b}, ${color.a})`;
+}
+
 let current_color = 0;
 let current_mode = "normal";
 let current_rmode = null;
@@ -94,42 +109,62 @@ export function DrawSetSymbolPage(page) {
   symbol_page = page;
 }
 
-class TextHolder
-{
-  constructor(container, color, fontSize) {
+class TextHolder {
+  constructor(container, color, fontSize, size) {
     this.container = container;
     this._color = color;
     this.fontSize = fontSize;
+    this.size = size;
     this._text = "";
     this.obj = null;
   }
 
   text(t) {
-    if (t === undefined)
-      return this._text;
+    if (t === undefined) return this._text;
 
     this._text = t;
     if (this._text.length > 0) {
       if (!this.obj) {
-        this.obj = new Text({fill: this._color, text: this._text,
-          fontSize: this.fontSize});
+        this.obj = new Text({
+          fill: this._color,
+          text: this._text,
+          fontSize: this.fontSize,
+        });
         this.container.add(this.obj);
+      } else this.obj.text(this._text);
+
+      if (this.size === 1) {
+        let size = cell_size;
+        let meas = {
+          width: this.fontSize * this._text.length * 0.6,
+          height: this.fontSize,
+        };
+        this.obj.position({
+          x: (size - meas.width) / 2 - size * 0.2,
+          y: (size - meas.height) / 2 - size * 0.1,
+        });
+      } else {
+        let size = 64;
+        let meas = {
+          width: this.fontSize * this._text.length * 0.5,
+          height: this.fontSize,
+        };
+        this.obj.position({
+          x: (size - meas.width) / 2,
+          y: (size - meas.height) / 2,
+        });
       }
-      else this.obj.text(this._text);
-    }
-    else if (this.obj) {
+    } else if (this.obj) {
       this.obj.destroy();
       this.obj = null;
     }
   }
 
   color(c) {
-    if (c === undefined)
-      return this._color;
+    if (c === undefined) return this._color;
 
     this._color = c;
-    if (this.obj)
-      this.obj.fill(this._color);
+    if (this.obj) this.obj.fill(this._color);
   }
 }
 
@@ -137,31 +172,21 @@ function set_symbol(container, str, color, _size) {
   let text;
   let size = _size;
   if (container.normal) {
-    /*
-    if (!container.normal.text) {
-      if (typeof color === "number")
-        color = DrawColors[color];
-      let t = new Text({
-        x: cell_size * 0.25, y: cell_size * 0.1,
-        fill: color, fontSize: cell_size * 0.8});
-      container.normal.text = t;
-      container.normal.add(t);
-    }
-    */
-    if (typeof color === "number")
-      color = DrawColors[color];
+    if (typeof color === "number") color = DrawColors[color];
     container.normal.text.color(color);
     size = cell_size;
     text = container.normal.text;
+    if (multi_digit) str = text.text() + str;
     container = container.symcont;
   } else if (size > 0) {
     // Symbol page
     color = "gray";
   } else {
     size = container.bsize;
+    if (multi_digit && str !== "") str = (container.symboltext || "") + str;
   }
   if (str[0] === "#" || !text) {
-    draw_symbol(container, str, color, size);
+    draw_symbol(container, str, color, size, number_bg);
   } else {
     text.text(str);
   }
@@ -190,19 +215,17 @@ function _set_cell(lock, pos, mode, color, newtext) {
   };
 
   if (!m.main_grid && mode !== "normal" && !lock) {
-    console.log("asd1");
     return;
   }
   if (m.lock_type === lock_normal && !lock && mode !== "color") {
-    console.log("asd2");
     return;
   }
 
   if (mode === "reset") {
     m.center.text.text("");
     m.normal.text.text("");
-    m.corner.forEach(c => c.text.text(""));
-    m.side.forEach(s => s.text.text(""));
+    m.corner.forEach((c) => c.text.text(""));
+    m.side.forEach((s) => s.text.text(""));
     m.r_color.fill(null);
     m.r_color.fillEnabled(false);
     if (lock) {
@@ -230,31 +253,18 @@ function _set_cell(lock, pos, mode, color, newtext) {
     set_symbol(b, newtext, color);
   } else if (mode === "normal") {
     if (!lock) {
-      //m.normal.fill(sol_text_color);
       color = sol_text_color;
     } else {
       m.lock_type = newtext !== "" ? lock_normal : 0;
       if (newtext[0] !== "#") {
-        //m.normal.fill(DrawColors[color]);
         m.color = color;
-        //if (m.normal.text() !== "" && newtext[0] !== "#")
-        //  newtext = m.normal.text() + newtext;
       }
     }
     set_symbol(m, newtext, color);
     if (newtext[0] !== "#") {
-      /*const meas = Text.measure(m.normal.text, m.normal.text.options);*/
-      //console.log(m.normal.getContext().measureText("1"));
-      //let measure_width = cell_size / 2;
-      /*
-      m.normal.position({
-        x: (cell_size - measure_width) / 2,
-        y: cell_size * 0.15,
-      });
-      */
       m.center.text.text("");
-      m.corner.forEach(c => c.text.text(""));
-      m.side.forEach(s => s.text.text(""));
+      m.corner.forEach((c) => c.text.text(""));
+      m.side.forEach((s) => s.text.text(""));
     }
   } else if (mode === "center" && m.normal.text.text() === "") {
     let current = m.center.text.text();
@@ -271,12 +281,6 @@ function _set_cell(lock, pos, mode, color, newtext) {
     }
 
     m.center.text.text(center);
-    //const meas = Text.measure(center, m.center.options);
-    let meas = { width: cell_size * 0.2 * center.length, height: cell_size * 0.3 };
-    m.center.text.obj.position({
-      x: (cell_size - meas.width) / 2,
-      y: (cell_size - meas.height) / 2,
-    });
   } else if (mode === "corner" && m.normal.text.text() === "") {
     let current = "";
     m.corner.forEach((t) => {
@@ -297,8 +301,8 @@ function _set_cell(lock, pos, mode, color, newtext) {
       }
     }
     let i = 0;
-    m.corner.forEach(c => c.text.text(text[i++] || ""));
-    m.side.forEach(s => s.text.text(text[i++] || ""));
+    m.corner.forEach((c) => c.text.text(text[i++] || ""));
+    m.side.forEach((s) => s.text.text(text[i++] || ""));
   } else if (mode === "color") {
     if (!lock) {
       m.r_color.fill(DrawColors[color]);
@@ -329,15 +333,15 @@ function lock_cell(pos, mode, color, newtext) {
 }
 
 export function DrawSetNumber(number) {
-  let count = 0;
   let symbol = number;
   if (symbol_page > 0) symbol = "#" + symbol_page + number;
   if (boundary) {
     set_cell(boundary, "boundary", current_color, symbol);
   } else {
+    let count = 0;
     each_mark((m) => {
-      set_cell([m.x, m.y], current_mode, current_color, symbol);
       ++count;
+      set_cell([m.x, m.y], current_mode, current_color, symbol);
     });
     if (count > 1) undo_stack.push({ mode: "group", count: count });
   }
@@ -370,6 +374,9 @@ function keydown(event) {
   } else if (event.key >= "0" && event.key <= "9") {
     newtext = event.key;
     if (symbol_page > 0) newtext = "#" + symbol_page + newtext;
+  } else if (event.key === "u" && solve_mode) {
+    DrawUndo();
+    return;
   } else if (
     event.key.length === 1 &&
     ((event.key >= "a" && event.key <= "z") ||
@@ -397,12 +404,16 @@ function keydown(event) {
   } else {
     let count = 0;
     each_mark((m) => ++count);
+
+    let mode = current_mode;
+    if (count > 1 && solve_mode && mode === "normal")
+      mode = "center";
     each_mark((m) => {
       if (current_mode === "color") {
         let color = +newtext - 1;
         if (color >= 0 && color <= 9)
           set_cell([m.x, m.y], current_mode, color, null);
-      } else set_cell([m.x, m.y], current_mode, current_color, newtext);
+      } else set_cell([m.x, m.y], mode, current_color, newtext);
     });
     if (count > 1) undo_stack.push({ mode: "group", count: count });
   }
@@ -517,8 +528,7 @@ function mousemove(event, x, y) {
       m.symcont.symbol = null;
       m.symcont.symboltext = "";
     }
-    if (drag_toggle)
-      draw_symbol(m.symcont, "#44", "black", cell_size);
+    if (drag_toggle) draw_symbol(m.symcont, "#44", "black", cell_size);
     scene.draw();
     return;
   }
@@ -543,7 +553,11 @@ function mark_boundary(x, y, i) {
 
   let b = get(x, y).boundary[i];
   if (!b.rect) {
-    b.rect = new Rect({width: b.bwidth, height: b.bheight, fillEnabled: false});
+    b.rect = new Rect({
+      width: b.bwidth,
+      height: b.bheight,
+      fillEnabled: false,
+    });
     b.add(b.rect);
   }
   b.rect.stroke("red");
@@ -558,10 +572,9 @@ function unmark() {
     boundary = null;
   }
   each_mark((m) => {
-    m.rect.fillEnabled(false);
+    m.rect.fill(null);
     m.mark = false;
   });
-  console.log("cursor null");
   cursor = null;
 }
 
@@ -600,8 +613,7 @@ function mousedown(event, x, y, i) {
       m.symcont.symbol = null;
       m.symcont.symboltext = "";
       drag_toggle = false;
-    }
-    else {
+    } else {
       draw_symbol(m.symcont, "#44", "black", cell_size);
       drag_toggle = true;
     }
@@ -612,7 +624,6 @@ function mousedown(event, x, y, i) {
   if (!shift) unmark();
 
   cursor = [x, y];
-  console.log(cursor);
   drag = true;
   drag_button = event.evt.button;
 
@@ -625,7 +636,7 @@ function mousedown(event, x, y, i) {
     current = { cells: [[x, y]], color: current_color };
     current.objs = draw_path(ctx, current.cells, current_style, current_color);
   } else if (current_mode === "cage") {
-    current = { cells: [x, y] };
+    current = { cells: [[x, y]], color: current_color };
     current.objs = draw_cage(ctx, current.cells, current_style, current_color);
   } else if (current_mode === "edge" && i !== undefined) {
     edge_toggle(x, y, i);
@@ -660,6 +671,7 @@ function mouseup() {
       style: current_style,
       cells: current.cells,
       objs: current.objs,
+      color: current_color,
     });
     current = null;
   }
@@ -668,6 +680,8 @@ function mouseup() {
 export function DrawSetMode(state) {
   current_mode = state.mode;
   solve_mode = state.solveMode;
+  number_bg = state.numberBackground;
+  multi_digit = state.multiDigit;
 
   each_cell((m) =>
     m.boundary.forEach((b) => {
@@ -686,7 +700,7 @@ export function DrawSetMode(state) {
   }
   if (state.mode === "centerline") {
     current_mode = "path";
-    current_style = "fat"
+    current_style = "fat";
     current_color = sol_text_color;
     current_rmode = "edgecross";
   }
@@ -702,8 +716,12 @@ export function DrawSetMode(state) {
       m.boundary.forEach((b, i) => {
         if (b.btype === b_edge) {
           if (!b.rect) {
-            b.rect = new Rect({width: b.bwidth, height: b.bheight,
-              fill: null, fillEnabled: false});
+            b.rect = new Rect({
+              width: b.bwidth,
+              height: b.bheight,
+              fill: null,
+              fillEnabled: false,
+            });
             b.add(b.rect);
           }
           b.rect.fillEnabled(true);
@@ -726,8 +744,12 @@ export function DrawSetMode(state) {
       m.boundary.forEach((b, i) => {
         if (b.btype === type) {
           if (!b.rect) {
-            b.rect = new Rect({width: b.bwidth, height: b.bheight,
-              fill: null, fillEnabled: true});
+            b.rect = new Rect({
+              width: b.bwidth,
+              height: b.bheight,
+              fill: null,
+              fillEnabled: true,
+            });
             b.add(b.rect);
           }
           b.rect.on("mousedown touchstart tap", (event) =>
@@ -825,7 +847,7 @@ function load(base64) {
     if (s.type === type_path) {
       s.objs = draw_path(ctx, s.cells, s.style, s.color);
     } else if (s.type === type_cage) {
-      s.objs = draw_cage(ctx, s.cells, s.style);
+      s.objs = draw_cage(ctx, s.cells, s.style, s.color);
     }
     stuff.push(s);
   });
@@ -915,31 +937,24 @@ export function DrawCheck() {
     boxes[b].push(n);
   });
   if (missing) {
-    alert(missing);
-    return false;
+    return [false, missing];
   }
   for (let i = 0; i < 9; ++i) {
     if (!isEqual(rows[i].sort(), r)) {
-      alert(`Bad row ${i + 1}`);
-      return false;
+      return [false, `Bad row ${i + 1}`];
     }
     if (!isEqual(columns[i].sort(), r)) {
-      alert(`Bad column ${i + 1}`);
-      return false;
+      return [false, `Bad column ${i + 1}`];
     }
     if (!isEqual(boxes[i].sort(), r)) {
-      alert(`Bad box ${i + 1}`);
-      return false;
+      return [false, `Bad box ${i + 1}`];
     }
   }
-  alert("OK");
-  return true;
+  return [true, "OK"];
 }
 
 export function DrawDelete() {
-  if (!solve_mode) {
-    if (cursor === null)
-      return;
+  if (!solve_mode && cursor) {
     let i = findLastIndex(stuff, (s) =>
       s.cells.find((c) => c[0] === cursor[0] && c[1] === cursor[1])
     );
@@ -1018,7 +1033,7 @@ function add_grid(layer) {
     strokeWidth: 4,
   };
 
-  grid_lines.forEach(g => g.destroy());
+  grid_lines.forEach((g) => g.destroy());
 
   let frame_w = grid_w - grid_left - grid_right;
   let frame_h = grid_h - grid_top - grid_bottom;
@@ -1122,8 +1137,6 @@ function addBoundaries(x, y, boundary) {
       h = size[1];
       s = Math.min(size[0], size[1]);
     }
-    //let r = new Rect({ width: w, height: h, fillEnabled: false });
-    //g.add(r);
     b.rect = null;
     b.bsize = s;
     b.bwidth = w;
@@ -1240,10 +1253,21 @@ export function DrawRender(code, wrapper, state) {
       let r = new Rect({
         width: cs,
         height: cs,
-        strokeWidth: 0
+        strokeWidth: 0,
+        fillEnabled: true,
       });
-      let r_color = new Rect({ width: cs, height: cs, strokeWidth: 0, fillEnabled: false });
-      let r_color_set = new Rect({ width: cs, height: cs, strokeWidth: 0, fillEnabled: false });
+      let r_color = new Rect({
+        width: cs,
+        height: cs,
+        strokeWidth: 0,
+        fillEnabled: false,
+      });
+      let r_color_set = new Rect({
+        width: cs,
+        height: cs,
+        strokeWidth: 0,
+        fillEnabled: false,
+      });
       let r_hover = new Rect({
         x: hover_offset,
         y: hover_offset,
@@ -1251,10 +1275,10 @@ export function DrawRender(code, wrapper, state) {
         height: cs - hover_offset * 2,
         fillEnabled: true,
       });
-      let normal = new Group({x: cell_size * 0.25, y: cell_size * 0.15});
-      normal.text = new TextHolder(normal, sol_text_color, cell_size * 0.8);
+      let normal = new Group({ x: cell_size * 0.25, y: cell_size * 0.15 });
+      normal.text = new TextHolder(normal, sol_text_color, cell_size * 0.7, 1);
       let center = new Group();
-      center.text = new TextHolder(center, sol_text_color, cell_size * 0.3);
+      center.text = new TextHolder(center, sol_text_color, cell_size * 0.3, 2);
       let corner_pos = [];
       corner_pos[0] = [corner_offset, corner_offset];
       corner_pos[1] = [cs - corner_offset, corner_offset];
@@ -1276,8 +1300,8 @@ export function DrawRender(code, wrapper, state) {
           p[1] -= cs * 0.025;
           if (i === 2 || i === 3) p[1] -= cs * 0.15;
           if (i === 1 || i === 2) p[0] -= cs * 0.1;
-          let g = new Group({x: p[0], y: p[1]});
-          g.text = new TextHolder(g, sol_text_color, cs * 0.2);
+          let g = new Group({ x: p[0], y: p[1] });
+          g.text = new TextHolder(g, sol_text_color, cs * 0.2, 1);
           corner.push(g);
         });
         side_pos.forEach((p, i) => {
@@ -1288,8 +1312,8 @@ export function DrawRender(code, wrapper, state) {
           if (i === 1 || i === 3) p[1] -= cs * 0.05;
           if (i === 0 || i === 2) p[0] -= cs * 0.025;
           if (i === 1) p[0] -= cs * 0.1;
-          let g = new Group({x: p[0], y: p[1]});
-          g.text = new TextHolder(g, sol_text_color, cs * 0.2);
+          let g = new Group({ x: p[0], y: p[1] });
+          g.text = new TextHolder(g, sol_text_color, cs * 0.2, 1);
           side.push(g);
         });
       }

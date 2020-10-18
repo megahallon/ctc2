@@ -1,6 +1,5 @@
-import { Circle, Line, Arrow, Util } from "konva";
-import { DrawColors } from "./draw";
-//import Arrow from "./arrow";
+import { Circle, Line, Arrow } from "konva";
+import {DrawColorPremul } from "./draw";
 
 function center_px(cell_size, p) {
   return [p[0] * cell_size + cell_size / 2, p[1] * cell_size + cell_size / 2];
@@ -8,17 +7,7 @@ function center_px(cell_size, p) {
 
 export function draw_path(ctx, cells, style, color) {
   let cell_size = ctx.cell_size;
-
-  if (typeof color === "number") {
-    color = DrawColors[color];
-  }
-  // Premultiply for thermo
-  color = Util.colorToRGBA(color);
-  color.r = color.r * color.a + (1 - color.a) * 255;
-  color.g = color.g * color.a + (1 - color.a) * 255;
-  color.b = color.b * color.a + (1 - color.a) * 255;
-  color.a = 1;
-  color = `rgba(${color.r}, ${color.g}, ${color.b}, ${color.a})`;
+  color = DrawColorPremul(color);
 
   let start_px = center_px(cell_size, cells[0]);
   let points = cells

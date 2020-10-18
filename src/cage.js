@@ -1,5 +1,5 @@
 import { Line } from "konva";
-import { DrawColors } from "./draw";
+import { DrawColorPremul } from "./draw";
 
 export function draw_cage(ctx, cells, style, color) {
   if (style === "dash") return draw_dash_cage(ctx, cells, color);
@@ -12,8 +12,7 @@ function draw_dash_cage(ctx, cells, color) {
   let get_cage = (x, y) => {
     return cells.find((e) => e[0] === x && e[1] === y);
   };
-  if (typeof color === "number")
-    color = DrawColors[color];
+  color = DrawColorPremul(color);
 
   const corner_ext_pos = [
     [0, corner_offset],
@@ -43,7 +42,7 @@ function draw_dash_cage(ctx, cells, color) {
     let add_line = (start, end) => {
       l.push(
         new Line({points: [...start, ...end],
-          dash: [4],
+          dash: [ctx.cell_size / 20],
           strokeWidth: 2,
           stroke: color,
         })
@@ -101,7 +100,8 @@ function draw_dash_cage(ctx, cells, color) {
       }
       add_line(start, end);
     }
-    m.cont.add(...l);
+    if (l.length > 0)
+      m.cont.add(...l);
     lines = lines.concat(l);
   });
   return lines;
@@ -109,11 +109,10 @@ function draw_dash_cage(ctx, cells, color) {
 
 function draw_edge_cage(ctx, cells, color) {
   let cs = ctx.cell_size;
-  if (typeof color === "number")
-    color = DrawColors[color];
   let get_cage = (x, y) => {
     return cells.find((e) => e[0] === x && e[1] === y);
   };
+  color = DrawColorPremul(color);
 
   const corner = [
     [0, 0],
@@ -163,7 +162,7 @@ function draw_edge_cage(ctx, cells, color) {
       add_line(start, end);
     }
     if (l.length > 0)
-      m.cont.add(...l);
+      m.ocont.add(...l);
     lines.push(...l);
   });
   return lines;

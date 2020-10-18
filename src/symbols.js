@@ -1,6 +1,6 @@
 //import Arrow from "./arrow";
 import { Circle, Star, Rect, Group, Text, Line, Arrow } from "konva";
-import { DrawColors } from "./draw";
+import { DrawColorPremul } from "./draw";
 
 /*
 class Text2 extends Text
@@ -28,7 +28,7 @@ class Text2 extends Text
 export function draw_symbol(container, str, _color, size, bg) {
   let page = +str.substr(1, 1);
   let symbol = +str.substr(2, 1);
-  let color = typeof _color === "string" ? _color : DrawColors[_color];
+  let color = DrawColorPremul(_color);
   let cx = size / 2;
   let cy = size / 2;
   let sym;
@@ -37,17 +37,16 @@ export function draw_symbol(container, str, _color, size, bg) {
 
   if (page === 0) {
     sym = new Text({
-      x: size / 4,
+      x: size * 0.5 - (0.25 * size * str.length),
       y: size * 0.1,
       text: str,
-      font: "sans-serif",
       fontSize: size,
       fill: color,
+      listening: false,
     });
     /*const meas = Text.measure(str, textOptions);*/
     //const measure_width = 30;
     //sym.position.x = (size - measure_width) / 2;
-    //bg = true;
   }
   if (page === 1) {
     if (symbol === 1) {
@@ -314,7 +313,7 @@ export function draw_symbol(container, str, _color, size, bg) {
       container.symbol.destroy();
     }
     if (bg) {
-      let bg = new Rect({ width: size, height: size, fill: "white" });
+      let bg = new Rect({ width: size, height: size, fill: "white", listening: false });
       let c = new Group();
       c.add(bg, sym);
       container.symbol = c;

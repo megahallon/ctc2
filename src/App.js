@@ -29,6 +29,9 @@ import {
   Select,
   MenuItem,
   FormControl,
+  FormGroup,
+  FormLabel,
+  FormControlLabel,
   InputLabel,
   Grid,
   TextField,
@@ -90,6 +93,8 @@ class App extends React.Component {
       gridRightDiagonal: false,
       mode: solve_mode ? "normal" : "number",
       numberStyle: "normal",
+      multiDigit: false,
+      numberBackground: false,
       cageStyle: "dash",
       pathStyle: "arrow",
       dialogOpen: false,
@@ -101,8 +106,7 @@ class App extends React.Component {
   }
 
   handleKeyDown = (event) => {
-    if (event.target.tagName === "TEXTAREA")
-      return;
+    if (event.target.tagName === "TEXTAREA") return;
 
     if (this.state.solveMode) {
       const cycle_modes = ["normal", "center", "corner", "color"];
@@ -178,6 +182,28 @@ class App extends React.Component {
             <MenuItem value="quarter">Quarter</MenuItem>
             <MenuItem value="boundary">Boundary</MenuItem>
           </Select>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={this.state.numberBackground}
+                onChange={(e) => {
+                  this.setStyle("numberBackground", e.target.checked);
+                }}
+              />
+            }
+            label="Background"
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={this.state.multiDigit}
+                onChange={(e) => {
+                  this.setStyle("multiDigit", e.target.checked);
+                }}
+              />
+            }
+            label="Multi digit"
+          />
         </FormControl>
       </Box>
     );
@@ -333,9 +359,7 @@ class App extends React.Component {
             {this.sizeSlider("gridDivWidth", "Grid divider width")}
             {this.sizeSlider("gridDivHeight", "Grid divider height")}
             <FormControl fullWidth={true}>
-              <InputLabel shrink id="gridstyle-label">
-                Style
-              </InputLabel>
+              <InputLabel id="gridstyle-label">Style</InputLabel>
               <Select
                 labelId="gridstyle-label"
                 fullWidth={true}
@@ -349,19 +373,39 @@ class App extends React.Component {
                 <MenuItem value="dots">Dots</MenuItem>
               </Select>
             </FormControl>
-            <Typography>Diagonals</Typography>
-            <Switch
-              checked={this.state.gridLeftDiagonal}
-              onChange={(e) => {
-                this.setGridState("gridLeftDiagonal", e.target.checked);
-              }}
-            />
-            <Switch
-              checked={this.state.gridRightDiagonal}
-              onChange={(e) => {
-                this.setGridState("gridRightDiagonal", e.target.checked);
-              }}
-            />
+            <FormControl fullWidth={true}>
+              <FormLabel>Diagonals</FormLabel>
+              <FormGroup>
+                <FormControlLabel
+                  fullWidth={true}
+                  control={
+                    <Switch
+                      checked={this.state.gridLeftDiagonal}
+                      onChange={(e) => {
+                        this.setGridState("gridLeftDiagonal", e.target.checked);
+                      }}
+                    />
+                  }
+                  label="Left"
+                />
+                <FormControlLabel
+                  control={
+                    <Switch
+                      labelId="rightdiagonal-label"
+                      fullWidth={true}
+                      checked={this.state.gridRightDiagonal}
+                      onChange={(e) => {
+                        this.setGridState(
+                          "gridRightDiagonal",
+                          e.target.checked
+                        );
+                      }}
+                    />
+                  }
+                  label="Right"
+                />
+              </FormGroup>
+            </FormControl>
           </Box>
         )}
         {this.state.settingsMode === "description" && (
@@ -446,11 +490,22 @@ class App extends React.Component {
     ));
   }
 
+  check = () => {
+    let r = DrawCheck();
+    let status = r[0];
+    let msg = r[1];
+    if (status)
+      this.setState({ timeStatus: false });
+    alert(msg);
+  }
+
   renderSolveMode() {
     let buttons = [
       ["normal", "Normal"],
+      /*
       ["edgecross", "Edge+cross"],
       ["centerline", "Center line"],
+      */
       ["center", "Center"],
       ["corner", "Corner"],
       ["color", "Color"],
@@ -489,7 +544,7 @@ class App extends React.Component {
               orientation="vertical"
             >
               <Button onClick={DrawReset}>Reset</Button>
-              <Button onClick={DrawCheck}>Check</Button>
+              <Button onClick={this.check}>Check</Button>
               <Button onClick={DrawUndo}>Undo</Button>
               <Button onClick={DrawDelete}>Delete</Button>
             </ButtonGroup>
@@ -603,7 +658,6 @@ class App extends React.Component {
               orientation="vertical"
             >
               <Button onClick={DrawReset}>Reset</Button>
-              <Button onClick={DrawCheck}>Check</Button>
               <Button onClick={DrawUndo}>Undo</Button>
               <Button onClick={DrawDelete}>Delete</Button>
             </ButtonGroup>
