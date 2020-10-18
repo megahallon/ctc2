@@ -333,16 +333,17 @@ function lock_cell(pos, mode, color, newtext) {
 }
 
 export function DrawSetNumber(number) {
-  let symbol = number;
+  let symbol = "" + number;
   if (symbol_page > 0) symbol = "#" + symbol_page + number;
   if (boundary) {
     set_cell(boundary, "boundary", current_color, symbol);
   } else {
     let count = 0;
-    each_mark((m) => {
-      ++count;
-      set_cell([m.x, m.y], current_mode, current_color, symbol);
-    });
+    let mode = current_mode;
+    each_mark(m => ++count);
+    if (count > 1 && solve_mode && mode === "normal")
+      mode = "center";
+    each_mark(m => set_cell([m.x, m.y], mode, current_color, symbol));
     if (count > 1) undo_stack.push({ mode: "group", count: count });
   }
   scene.draw();
