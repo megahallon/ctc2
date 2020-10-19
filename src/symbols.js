@@ -44,9 +44,6 @@ export function draw_symbol(container, str, _color, size, bg) {
       fill: color,
       listening: false,
     });
-    /*const meas = Text.measure(str, textOptions);*/
-    //const measure_width = 30;
-    //sym.position.x = (size - measure_width) / 2;
   }
   if (page === 1) {
     if (symbol === 1) {

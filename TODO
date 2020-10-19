@@ -1,0 +1,14 @@
+TODO
+
+white color should be transparent in solve
+fix same color on number symbol
+edge mode solver
+center line solver
+
+
+sudoku checker, paint bad cells
+
+possible checkers
+single edge loop
+kakuro
+fillomino

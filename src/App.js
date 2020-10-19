@@ -37,8 +37,10 @@ import {
   TextField,
   Switch,
 } from "@material-ui/core";
+import { ConfirmProvider, useConfirm } from 'material-ui-confirm';
 import { PlayArrow, Pause, SkipPrevious } from "@material-ui/icons";
 
+//const confirm = useConfirm();
 const query = window.location.search;
 const url_params = new URLSearchParams(query);
 const code = url_params.get("p");
@@ -244,6 +246,7 @@ class App extends React.Component {
             onChange={(event) => this.setStyle("pathStyle", event.target.value)}
           >
             <MenuItem value="thin">Line</MenuItem>
+            <MenuItem value="medium">Medium line</MenuItem>
             <MenuItem value="fat">Fat Line</MenuItem>
             <MenuItem value="thermo">Thermo</MenuItem>
             <MenuItem value="arrow">Arrow</MenuItem>
@@ -252,6 +255,7 @@ class App extends React.Component {
             <MenuItem value="border">Border</MenuItem>
             <MenuItem value="roundfill">Round fill</MenuItem>
             <MenuItem value="squarefill">Square fill</MenuItem>
+            <MenuItem value="closed">Closed</MenuItem>
           </Select>
         </FormControl>
       </Box>
@@ -490,6 +494,15 @@ class App extends React.Component {
     ));
   }
 
+
+  reset = () => {
+    /*
+    confirm({ description: "ASDASD" })
+      .then(() => DrawReset());
+      */
+    DrawReset()
+  }
+
   check = () => {
     let r = DrawCheck();
     let status = r[0];
@@ -500,16 +513,28 @@ class App extends React.Component {
   }
 
   renderSolveMode() {
-    let buttons = [
-      ["normal", "Normal"],
-      /*
-      ["edgecross", "Edge+cross"],
-      ["centerline", "Center line"],
-      */
-      ["center", "Center"],
-      ["corner", "Corner"],
-      ["color", "Color"],
-    ];
+    let solvemode = 0;
+    let buttons;
+    switch (solvemode) {
+      case 0:
+        buttons = [
+          ["normal", "Normal"],
+          ["center", "Center"],
+          ["corner", "Corner"],
+          ["color", "Color"],
+        ];
+        break;
+      case 1:
+        buttons = [
+          ["edgecross", "Edge+cross"],
+          ["centerline", "Center line"],
+          ["color", "Color"],
+        ];
+        break;
+      default:
+        break;
+    }
+
     return (
       <Box display="flex" flexDirection="row">
         {this.timerBox()}
@@ -543,7 +568,7 @@ class App extends React.Component {
               variant="contained"
               orientation="vertical"
             >
-              <Button onClick={DrawReset}>Reset</Button>
+              <Button onClick={this.reset}>Reset</Button>
               <Button onClick={this.check}>Check</Button>
               <Button onClick={DrawUndo}>Undo</Button>
               <Button onClick={DrawDelete}>Delete</Button>
@@ -669,7 +694,11 @@ class App extends React.Component {
   }
 
   render() {
-    return this.state.solveMode ? this.renderSolveMode() : this.renderSetMode();
+    return (
+      <ConfirmProvider>
+        {this.state.solveMode ? this.renderSolveMode() : this.renderSetMode()}
+      </ConfirmProvider>
+    );
   }
 }
 

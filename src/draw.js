@@ -48,7 +48,7 @@ const mark_color = "rgba(247, 208, 56, 0.5)";
 export const DrawColors = [
   "rgba(0, 0, 0, 1)",
   "rgba(207, 207, 207, 0.5)",
-  "rgba(255, 255, 255, 1)",
+  "rgba(255, 255, 255, 0)",
   "rgba(163, 224, 72, 0.5)",
   "rgba(210, 59, 231, 0.5)",
   "rgba(235, 117, 50, 0.5)",
@@ -143,7 +143,7 @@ class TextHolder {
           x: (size - meas.width) / 2 - size * 0.2,
           y: (size - meas.height) / 2 - size * 0.1,
         });
-      } else {
+      } else if (this.size === 2) {
         let size = 64;
         let meas = {
           width: this.fontSize * this._text.length * 0.5,
@@ -152,6 +152,12 @@ class TextHolder {
         this.obj.position({
           x: (size - meas.width) / 2,
           y: (size - meas.height) / 2,
+        });
+      }
+      else {
+        this.obj.position({
+          x: 0,
+          y: 0
         });
       }
     } else if (this.obj) {
@@ -173,7 +179,6 @@ function set_symbol(container, str, color, _size) {
   let size = _size;
   if (container.normal) {
     if (typeof color === "number") color = DrawColors[color];
-    container.normal.text.color(color);
     size = cell_size;
     text = container.normal.text;
     if (multi_digit) str = text.text() + str;
@@ -189,6 +194,7 @@ function set_symbol(container, str, color, _size) {
     draw_symbol(container, str, color, size, number_bg);
   } else {
     text.text(str);
+    text.color(color);
   }
 }
 
@@ -352,7 +358,7 @@ export function DrawSetNumber(number) {
 export function DrawSetColor(color_index) {
   current_color = color_index;
   if (current_mode === "color") {
-    each_mark((m) => {
+    each_mark(m => {
       set_cell([m.x, m.y], "color", color_index, null);
     });
     scene.draw();
@@ -404,12 +410,12 @@ function keydown(event) {
     set_cell(boundary, "boundary", current_color, newtext);
   } else {
     let count = 0;
-    each_mark((m) => ++count);
+    each_mark(m => ++count);
 
     let mode = current_mode;
     if (count > 1 && solve_mode && mode === "normal")
       mode = "center";
-    each_mark((m) => {
+    each_mark(m => {
       if (current_mode === "color") {
         let color = +newtext - 1;
         if (color >= 0 && color <= 9)
@@ -432,6 +438,7 @@ function get(x, y, b) {
 
 function mark(x, y) {
   let m = get(x, y);
+  cursor = [x, y];
   if (!m.mark) {
     m.mark = true;
     m.rect.fill(mark_color);
@@ -441,7 +448,7 @@ function mark(x, y) {
   return false;
 }
 
-function inner_hover(x, y) {
+function inner_hover(event, x, y) {
   if (!drag) return;
   if (drag_button !== 0) return;
 
@@ -543,10 +550,10 @@ function mousemove(event, x, y) {
     if (current.objs) current.objs.forEach((o) => o.destroy());
     current.cells.push([x, y]);
     current.objs = draw_cage(ctx, current.cells, current_style, current_color);
-    scene.draw();
-  } else {
-    if (mark(x, y)) scene.draw();
   }
+
+  mark(x, y);
+  scene.draw();
 }
 
 function mark_boundary(x, y, i) {
@@ -572,7 +579,7 @@ function unmark() {
     if (r) r.strokeWidth(0);
     boundary = null;
   }
-  each_mark((m) => {
+  each_mark(m => {
     m.rect.fill(null);
     m.mark = false;
   });
@@ -624,9 +631,11 @@ function mousedown(event, x, y, i) {
 
   if (!shift) unmark();
 
-  cursor = [x, y];
   drag = true;
-  drag_button = event.evt.button;
+  if (event.evt.type === "touchstart")
+    drag_button = 0;
+  else
+    drag_button = event.evt.button;
 
   if (boundary) {
     get(...boundary).strokeWidth(0);
@@ -641,10 +650,9 @@ function mousedown(event, x, y, i) {
     current.objs = draw_cage(ctx, current.cells, current_style, current_color);
   } else if (current_mode === "edge" && i !== undefined) {
     edge_toggle(x, y, i);
-  } else {
-    mark(x, y);
   }
 
+  mark(x, y);
   scene.draw();
 }
 
@@ -956,11 +964,19 @@ export function DrawCheck() {
 
 export function DrawDelete() {
   if (!solve_mode && cursor) {
-    let i = findLastIndex(stuff, (s) =>
+    let i = findLastIndex(stuff, s =>
       s.cells.find((c) => c[0] === cursor[0] && c[1] === cursor[1])
     );
+    if (i === -1) {
+      each_mark(m => {
+        if (i !== -1) return;
+        i = findLastIndex(stuff, s =>
+          s.cells.find(c => c[0] === m.x && c[1] === m.y)
+        );
+      });
+    }
     if (i !== -1) {
-      stuff[i].objs.forEach((o) => o.destroy());
+      stuff[i].objs.forEach(o => o.destroy());
       stuff.splice(i, 1);
       scene.draw();
       return;
@@ -972,7 +988,7 @@ export function DrawDelete() {
   if (boundary) {
     set_cell(boundary, "boundary", null, "");
   } else {
-    each_mark((m) => {
+    each_mark(m => {
       set_cell([m.x, m.y], "reset", null, "");
       ++count;
     });
@@ -1302,7 +1318,7 @@ export function DrawRender(code, wrapper, state) {
           if (i === 2 || i === 3) p[1] -= cs * 0.15;
           if (i === 1 || i === 2) p[0] -= cs * 0.1;
           let g = new Group({ x: p[0], y: p[1] });
-          g.text = new TextHolder(g, sol_text_color, cs * 0.2, 1);
+          g.text = new TextHolder(g, sol_text_color, cs * 0.2, 3);
           corner.push(g);
         });
         side_pos.forEach((p, i) => {
@@ -1314,7 +1330,7 @@ export function DrawRender(code, wrapper, state) {
           if (i === 0 || i === 2) p[0] -= cs * 0.025;
           if (i === 1) p[0] -= cs * 0.1;
           let g = new Group({ x: p[0], y: p[1] });
-          g.text = new TextHolder(g, sol_text_color, cs * 0.2, 1);
+          g.text = new TextHolder(g, sol_text_color, cs * 0.2, 3);
           side.push(g);
         });
       }
@@ -1323,7 +1339,7 @@ export function DrawRender(code, wrapper, state) {
       cont.add(r_color_set, r_color, r, r_hover, symcont, normal, center);
       cont.on("mousedown touchstart tap", (event) => mousedown(event, x, y));
       cont.on("mousemove touchmove", (event) => mousemove(event, x, y));
-      r_hover.on("mousemove touchmove", () => inner_hover(x, y));
+      r_hover.on("mousemove touchmove", (event) => inner_hover(event, x, y));
       matrix[y][x] = {
         x: x,
         y: y,

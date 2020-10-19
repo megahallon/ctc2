@@ -15,7 +15,9 @@ export function draw_path(ctx, cells, style, color) {
       let px = center_px(cell_size, p);
       return [px[0], px[1]];
     })
-    .flat();
+  if (points.length === 1)
+    points.push(points[points.length - 1]);
+  points = points.flat();
   let objs = [];
 
   if (style === "thermo") {
@@ -33,13 +35,33 @@ export function draw_path(ctx, cells, style, color) {
       lineCap: "round"
     });
     objs.push(bulb, line);
+  } else if (style === "closed") {
+    let strokeWidth = cell_size * 0.05;
+    let line = new Line({
+      points: points,
+      stroke: color,
+      strokeWidth: strokeWidth,
+      lineCap: "round",
+      fill: color,
+      closed: true
+    });
+    objs.push(line);
   } else if (style === "thin") {
     let strokeWidth = cell_size * 0.05;
     let line = new Line({
       points: points,
       stroke: color,
       strokeWidth: strokeWidth,
-      lineCap: "square"
+      lineCap: "round"
+    });
+    objs.push(line);
+  } else if (style === "medium") {
+    let strokeWidth = cell_size * 0.15;
+    let line = new Line({
+      points: points,
+      stroke: color,
+      strokeWidth: strokeWidth,
+      lineCap: "round"
     });
     objs.push(line);
   } else if (style === "fat") {

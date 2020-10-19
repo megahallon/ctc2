@@ -28,11 +28,11 @@ style: thermo (fat,thin), "no bulb thermo", thin line
 color: optional
 objects: single line + possible bulb
 
-Draw:
-overlay for solving
-underlay for setting
-
-
+Draw order:
+underlay2: paths
+underlay: "cont" with r_color_set (set color), r_color (solve color), r, symbol, number, center
+gridlayer
+overlay: cages, "ocont" with corner, sides, boundarys
 
 future:
 irregular border
