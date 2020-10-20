@@ -448,7 +448,7 @@ function mark(x, y) {
   return false;
 }
 
-function inner_hover(event, x, y) {
+function inner_mousemove(event, x, y) {
   if (!drag) return;
   if (drag_button !== 0) return;
 
@@ -525,7 +525,15 @@ function edge_mousemove(event, x, y, i) {
   edge_toggle(x, y, i);
 }
 
+let last_move = [-1, -1];
+
 function mousemove(event, x, y) {
+  if (x === last_move[0] && y === last_move[1])
+    return;
+
+  last_move[0] = x;
+  last_move[1] = y;
+
   if (!drag) return;
 
   if (drag_button === 2 && current_rmode === "cross") {
@@ -542,6 +550,7 @@ function mousemove(event, x, y) {
   }
 
   if (current_mode === "path" || current_mode === "edge") {
+    unmark();
   } else if (current_mode === "cage") {
     if (current.cells.length > 0) {
       let l = last(current.cells);
@@ -550,6 +559,7 @@ function mousemove(event, x, y) {
     if (current.objs) current.objs.forEach((o) => o.destroy());
     current.cells.push([x, y]);
     current.objs = draw_cage(ctx, current.cells, current_style, current_color);
+    unmark();
   }
 
   mark(x, y);
@@ -629,7 +639,9 @@ function mousedown(event, x, y, i) {
     return;
   }
 
-  if (!shift) unmark();
+  if (!shift) {
+    unmark();
+  }
 
   drag = true;
   if (event.evt.type === "touchstart")
@@ -688,7 +700,6 @@ function mouseup() {
 
 export function DrawSetMode(state) {
   current_mode = state.mode;
-  solve_mode = state.solveMode;
   number_bg = state.numberBackground;
   multi_digit = state.multiDigit;
 
@@ -1210,6 +1221,7 @@ function addBoundaries(x, y, boundary) {
 }
 
 export function DrawRender(code, wrapper, state) {
+  solve_mode = state.solveMode;
   cell_size = state.cellSize;
   grid_left = state.left;
   grid_right = state.right;
@@ -1285,7 +1297,7 @@ export function DrawRender(code, wrapper, state) {
         strokeWidth: 0,
         fillEnabled: false,
       });
-      let r_hover = new Rect({
+      let r_inner = new Rect({
         x: hover_offset,
         y: hover_offset,
         width: cs - hover_offset * 2,
@@ -1336,10 +1348,10 @@ export function DrawRender(code, wrapper, state) {
       }
       addBoundaries(x, y, boundary);
 
-      cont.add(r_color_set, r_color, r, r_hover, symcont, normal, center);
+      cont.add(r_color_set, r_color, r, r_inner, symcont, normal, center);
       cont.on("mousedown touchstart tap", (event) => mousedown(event, x, y));
       cont.on("mousemove touchmove", (event) => mousemove(event, x, y));
-      r_hover.on("mousemove touchmove", (event) => inner_hover(event, x, y));
+      r_inner.on("mousemove touchmove", (event) => inner_mousemove(event, x, y));
       matrix[y][x] = {
         x: x,
         y: y,

@@ -30,7 +30,7 @@ objects: single line + possible bulb
 
 Draw order:
 underlay2: paths
-underlay: "cont" with r_color_set (set color), r_color (solve color), r, symbol, number, center
+underlay: "cont" with r_color_set (set color), r_color (solve color), rect (mark), symbol, number, center
 gridlayer
 overlay: cages, "ocont" with corner, sides, boundarys
 

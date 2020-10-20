@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 import "./App.css";
 import {
   DrawRender,
@@ -37,14 +37,135 @@ import {
   TextField,
   Switch,
 } from "@material-ui/core";
-import { ConfirmProvider, useConfirm } from 'material-ui-confirm';
+import { ConfirmProvider, useConfirm } from "material-ui-confirm";
 import { PlayArrow, Pause, SkipPrevious } from "@material-ui/icons";
 
-//const confirm = useConfirm();
 const query = window.location.search;
-const url_params = new URLSearchParams(query);
-const code = url_params.get("p");
-const solve_mode = url_params.get("s") === "1";
+const urlParams = new URLSearchParams(query);
+const code = urlParams.get("p");
+const solveMode = urlParams.get("s") === "1";
+
+function ColorGrid(props) {
+  return DrawColors.slice(0, props.num).map((color, index) => (
+    <Grid key={index} item xs={4}>
+      <Button variant="outlined" onClick={() => DrawSetColor(index)}>
+        <div
+          style={{
+            border: "1px solid black",
+            background: color,
+            width: "30px",
+            height: "30px",
+          }}
+        />
+      </Button>
+    </Grid>
+  ));
+}
+
+function ResetButton() {
+  const confirm = useConfirm();
+
+  const onClick = () => {
+    confirm({ description: "Remove all changes in grid?" })
+      .then(() => DrawReset())
+      .catch(() => null);
+    };
+
+  return <Button onClick={onClick}>Reset</Button>;
+}
+
+function SymbolSelect() {
+  let [page, setPage] = useState("0");
+  let symbolRef = [];
+  symbolRef[0] = useRef(null);
+  symbolRef[1] = useRef(null);
+  symbolRef[2] = useRef(null);
+  symbolRef[3] = useRef(null);
+  symbolRef[4] = useRef(null);
+  symbolRef[5] = useRef(null);
+  symbolRef[6] = useRef(null);
+  symbolRef[7] = useRef(null);
+  symbolRef[8] = useRef(null);
+  symbolRef[9] = useRef(null);
+
+  const pages = ["Numbers", "Circles", "Arrows", "Arrows 2", "Misc"];
+  const setSymbolPage = e => setPage(e.target.value);
+
+  useEffect(() => {
+    if (+page > 0) {
+      for (let i = 0; i < 9; ++i) {
+        DrawSymbol(
+          symbolRef[i].current,
+          page,
+          i + 1,
+          30
+        );
+      }
+    }
+    DrawSetSymbolPage(+page);
+  });
+
+  return (
+    <Box>
+      <FormControl fullWidth={true}>
+        <Select
+          fullWidth={true}
+          value={page}
+          onChange={setSymbolPage}
+        >
+          {pages.map((p, i) => (
+            <MenuItem key={p} value={i}>
+              {p}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+      <Grid container>
+        {[...Array(9).keys()].map((index) => (
+          <Grid key={index} item xs={4}>
+            <Button
+              variant="outlined"
+              onClick={() => DrawSetNumber(index + 1)}
+            >
+              {+page === 0 && (
+                <div style={{ fontSize: "20px" }}>{index + 1}</div>
+              )}
+              {+page > 0 && (
+                <div ref={symbolRef[index]} />
+              )}
+            </Button>
+          </Grid>
+        ))}
+      </Grid>
+    </Box>
+  );
+}
+
+function ColorSelect() {
+  let [color, setColor] = useState(0);
+
+  return DrawColors.map((c, index) => (
+    <Grid key={index} item xs={4}>
+      <Button
+        variant={color === index ? "contained" : "outlined"}
+        onClick={() => {
+          setColor(index);
+          DrawSetColor(index);
+        }}
+      >
+        <div
+          style={{
+            border: "1px solid black",
+            background: c,
+            width: "30px",
+            height: "30px",
+          }}
+        />
+      </Button>
+    </Grid>
+  ));
+}
+
 
 function UrlDialog(props) {
   let openInTab = () => {
@@ -77,7 +198,7 @@ class App extends React.Component {
     for (let i = 0; i < 9; ++i) this.symbolRef.push(React.createRef());
 
     this.state = {
-      solveMode: solve_mode,
+      solveMode: solveMode,
       settingsMode: "size",
       color: 0,
       description: "",
@@ -93,7 +214,7 @@ class App extends React.Component {
       gridStyle: "lines",
       gridLeftDiagonal: false,
       gridRightDiagonal: false,
-      mode: solve_mode ? "normal" : "number",
+      mode: solveMode ? "normal" : "number",
       numberStyle: "normal",
       multiDigit: false,
       numberBackground: false,
@@ -110,7 +231,7 @@ class App extends React.Component {
   handleKeyDown = (event) => {
     if (event.target.tagName === "TEXTAREA") return;
 
-    if (this.state.solveMode) {
+    if (solveMode) {
       const cycle_modes = ["normal", "center", "corner", "color"];
       let i = "qwer".indexOf(event.key);
       if (event.key.length === 1 && i !== -1) this.setMode(cycle_modes[i]);
@@ -435,21 +556,6 @@ class App extends React.Component {
     DrawSetMode(this.state);
   };
 
-  setSymbolPage = (event) => {
-    this.setState({ symbolPage: event.target.value }, () => {
-      if (+this.state.symbolPage > 0)
-        for (let i = 0; i < 9; ++i) {
-          DrawSymbol(
-            this.symbolRef[i].current,
-            this.state.symbolPage,
-            i + 1,
-            30
-          );
-        }
-    });
-    DrawSetSymbolPage(+event.target.value);
-  };
-
   setGridState = (state, value) => {
     this.setState({ [state]: value }, () => {
       DrawRender(code, this.canvasRef.current, this.state);
@@ -477,45 +583,18 @@ class App extends React.Component {
     );
   }
 
-  colorGrid(num) {
-    return DrawColors.slice(0, num).map((color, index) => (
-      <Grid key={index} item xs={4}>
-        <Button variant="outlined" onClick={() => DrawSetColor(index)}>
-          <div
-            style={{
-              border: "1px solid black",
-              background: color,
-              width: "30px",
-              height: "30px",
-            }}
-          />
-        </Button>
-      </Grid>
-    ));
-  }
-
-
-  reset = () => {
-    /*
-    confirm({ description: "ASDASD" })
-      .then(() => DrawReset());
-      */
-    DrawReset()
-  }
-
   check = () => {
     let r = DrawCheck();
     let status = r[0];
     let msg = r[1];
-    if (status)
-      this.setState({ timeStatus: false });
+    if (status) this.setState({ timeStatus: false });
     alert(msg);
-  }
+  };
 
   renderSolveMode() {
-    let solvemode = 0;
+    let solveStyle = 0;
     let buttons;
-    switch (solvemode) {
+    switch (solveStyle) {
       case 0:
         buttons = [
           ["normal", "Normal"],
@@ -568,7 +647,7 @@ class App extends React.Component {
               variant="contained"
               orientation="vertical"
             >
-              <Button onClick={this.reset}>Reset</Button>
+              <ResetButton/>
               <Button onClick={this.check}>Check</Button>
               <Button onClick={DrawUndo}>Undo</Button>
               <Button onClick={DrawDelete}>Delete</Button>
@@ -576,7 +655,7 @@ class App extends React.Component {
           </Box>
           <Box margin="30px">
             <Grid container>
-              {this.state.mode === "color" && this.colorGrid(9)}
+              {this.state.mode === "color" && <ColorGrid num={9} />}
               {this.state.mode !== "color" &&
                 [...Array(9).keys()].map((index) => (
                   <Grid key={index} item xs={4}>
@@ -595,69 +674,12 @@ class App extends React.Component {
     );
   }
 
-  colorSelect() {
-    return DrawColors.map((color, index) => (
-      <Grid key={index} item xs={4}>
-        <Button
-          variant={this.state.color === index ? "contained" : "outlined"}
-          onClick={() => {
-            this.setState({ color: index });
-            DrawSetColor(index);
-          }}
-        >
-          <div
-            style={{
-              border: "1px solid black",
-              background: color,
-              width: "30px",
-              height: "30px",
-            }}
-          />
-        </Button>
-      </Grid>
-    ));
-  }
-
-  pageSelect() {
-    const pages = ["Numbers", "Circles", "Arrows", "Arrows 2", "Misc"];
-
-    return (
-      <FormControl fullWidth={true}>
-        <Select
-          fullWidth={true}
-          value={this.state.symbolPage}
-          onChange={this.setSymbolPage}
-        >
-          {pages.map((p, i) => (
-            <MenuItem key={p} value={i}>
-              {p}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-    );
-  }
-
-  symbolGrid() {
-    return [...Array(9).keys()].map((index) => (
-      <Grid key={index} item xs={4}>
-        <Button variant="outlined" onClick={() => DrawSetNumber(index + 1)}>
-          {+this.state.symbolPage === 0 && (
-            <div style={{ fontSize: "20px" }}>{index + 1}</div>
-          )}
-          {+this.state.symbolPage > 0 && <div ref={this.symbolRef[index]} />}
-        </Button>
-      </Grid>
-    ));
-  }
-
   settingRight() {
     return (
       <Grid container>
-        {this.state.mode !== "color" && this.colorSelect()}
-        {this.state.mode === "color" && this.colorGrid()}
-        {this.state.mode === "number" && this.pageSelect()}
-        {this.state.mode === "number" && this.symbolGrid()}
+        {this.state.mode !== "color" && <ColorSelect/>}
+        {this.state.mode === "color" && <ColorGrid />}
+        {this.state.mode === "number" && <SymbolSelect />}
       </Grid>
     );
   }
@@ -682,7 +704,7 @@ class App extends React.Component {
               variant="contained"
               orientation="vertical"
             >
-              <Button onClick={DrawReset}>Reset</Button>
+              <ResetButton/>
               <Button onClick={DrawUndo}>Undo</Button>
               <Button onClick={DrawDelete}>Delete</Button>
             </ButtonGroup>
@@ -696,7 +718,7 @@ class App extends React.Component {
   render() {
     return (
       <ConfirmProvider>
-        {this.state.solveMode ? this.renderSolveMode() : this.renderSetMode()}
+        {solveMode ? this.renderSolveMode() : this.renderSetMode()}
       </ConfirmProvider>
     );
   }
