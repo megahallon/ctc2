@@ -5,6 +5,7 @@ import {
   DrawSymbol,
   DrawSetMode,
   DrawUndo,
+  DrawRedo,
   DrawDelete,
   DrawGenerateUrl,
   DrawSetNumber,
@@ -62,16 +63,60 @@ function ColorGrid(props) {
   ));
 }
 
+function Timer(props) {
+  const [seconds, setSeconds] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (props.active) {
+        setSeconds((s) => s + 1);
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [props.active]);
+
+  const restart = () => {
+    props.onStop();
+    setSeconds(0);
+  };
+
+  return (
+    <Box margin="20px" padding="10px" boxShadow={3}>
+      <Typography align="center" variant="h4">
+        {new Date(seconds * 1000).toISOString().substr(11, 8)}
+      </Typography>
+      <ButtonGroup fullWidth={true} size="large">
+        <Button onClick={props.onStart}>
+          <PlayArrow />
+        </Button>
+        <Button onClick={props.onStop}>
+          <Pause />
+        </Button>
+        <Button onClick={restart}>
+          <SkipPrevious />
+        </Button>
+      </ButtonGroup>
+    </Box>
+  );
+}
+
 function ResetButton() {
   const confirm = useConfirm();
 
   const onClick = () => {
     confirm({ description: "Remove all changes in grid?" })
-      .then(() => DrawReset())
+      .then(() => {
+        DrawReset();
+        this.setState({ timeStatus: true });
+      })
       .catch(() => null);
-    };
+  };
 
-  return <Button onClick={onClick}>Reset</Button>;
+  return (
+    <Button fullWidth={true} variant="contained" size="large" onClick={onClick}>
+      Reset
+    </Button>
+  );
 }
 
 function SymbolSelect() {
@@ -89,17 +134,12 @@ function SymbolSelect() {
   symbolRef[9] = useRef(null);
 
   const pages = ["Numbers", "Circles", "Arrows", "Arrows 2", "Misc"];
-  const setSymbolPage = e => setPage(e.target.value);
+  const setSymbolPage = (e) => setPage(e.target.value);
 
   useEffect(() => {
     if (+page > 0) {
       for (let i = 0; i < 9; ++i) {
-        DrawSymbol(
-          symbolRef[i].current,
-          page,
-          i + 1,
-          30
-        );
+        DrawSymbol(symbolRef[i].current, page, i + 1, 30);
       }
     }
     DrawSetSymbolPage(+page);
@@ -108,11 +148,7 @@ function SymbolSelect() {
   return (
     <Box>
       <FormControl fullWidth={true}>
-        <Select
-          fullWidth={true}
-          value={page}
-          onChange={setSymbolPage}
-        >
+        <Select fullWidth={true} value={page} onChange={setSymbolPage}>
           {pages.map((p, i) => (
             <MenuItem key={p} value={i}>
               {p}
@@ -123,16 +159,11 @@ function SymbolSelect() {
       <Grid container>
         {[...Array(9).keys()].map((index) => (
           <Grid key={index} item xs={4}>
-            <Button
-              variant="outlined"
-              onClick={() => DrawSetNumber(index + 1)}
-            >
+            <Button variant="outlined" onClick={() => DrawSetNumber(index + 1)}>
               {+page === 0 && (
                 <div style={{ fontSize: "20px" }}>{index + 1}</div>
               )}
-              {+page > 0 && (
-                <div ref={symbolRef[index]} />
-              )}
+              {+page > 0 && <div ref={symbolRef[index]} />}
             </Button>
           </Grid>
         ))}
@@ -165,7 +196,6 @@ function ColorSelect() {
     </Grid>
   ));
 }
-
 
 function UrlDialog(props) {
   let openInTab = () => {
@@ -222,7 +252,6 @@ class App extends React.Component {
       pathStyle: "arrow",
       dialogOpen: false,
       dialogText: "",
-      seconds: 0,
       timeStatus: true,
       symbolPage: "0",
     };
@@ -254,12 +283,6 @@ class App extends React.Component {
     });
 
     document.addEventListener("keydown", this.handleKeyDown);
-
-    this.interval = setInterval(() => {
-      if (this.state.timeStatus) {
-        this.setState({ seconds: this.state.seconds + 1 });
-      }
-    }, 1000);
   }
 
   componentWillUnmount() {
@@ -386,24 +409,11 @@ class App extends React.Component {
   timerBox() {
     return (
       <Box minWidth="250px">
-        <Box margin="20px" padding="10px" boxShadow={3}>
-          <Typography align="center" variant="h4">
-            {new Date(this.state.seconds * 1000).toISOString().substr(11, 8)}
-          </Typography>
-          <ButtonGroup fullWidth={true} size="large">
-            <Button onClick={() => this.setState({ timeStatus: true })}>
-              <PlayArrow />
-            </Button>
-            <Button onClick={() => this.setState({ timeStatus: false })}>
-              <Pause />
-            </Button>
-            <Button
-              onClick={() => this.setState({ seconds: 0, timeStatus: false })}
-            >
-              <SkipPrevious />
-            </Button>
-          </ButtonGroup>
-        </Box>
+        <Timer
+          active={this.state.timeStatus}
+          onStart={() => this.setState({ timeStatus: true })}
+          onStop={() => this.setState({ timeStatus: false })}
+        />
         {this.state.description !== "" && (
           <Box margin="20px">
             <TextField
@@ -466,7 +476,7 @@ class App extends React.Component {
         </Box>
         {this.state.settingsMode === "size" && (
           <Box margin="30px" padding="10px" boxShadow={3}>
-            {this.sizeSlider("cellSize", "Cell size", 32, 96, 5, true)}
+            {this.sizeSlider("cellSize", "Cell size", 32, 96, 4, true)}
             {this.sizeSlider("width", "Width", 3, 30)}
             {this.sizeSlider("height", "Height", 3, 30)}
           </Box>
@@ -647,10 +657,20 @@ class App extends React.Component {
               variant="contained"
               orientation="vertical"
             >
-              <ResetButton/>
-              <Button onClick={this.check}>Check</Button>
               <Button onClick={DrawUndo}>Undo</Button>
+              <Button onClick={DrawRedo}>Redo</Button>
               <Button onClick={DrawDelete}>Delete</Button>
+              <Button onClick={this.check}>Check</Button>
+            </ButtonGroup>
+          </Box>
+          <Box margin="30px">
+            <ButtonGroup
+              fullWidth={true}
+              size="large"
+              variant="contained"
+              orientation="vertical"
+            >
+              <ResetButton />
             </ButtonGroup>
           </Box>
           <Box margin="30px">
@@ -677,7 +697,7 @@ class App extends React.Component {
   settingRight() {
     return (
       <Grid container>
-        {this.state.mode !== "color" && <ColorSelect/>}
+        {this.state.mode !== "color" && <ColorSelect />}
         {this.state.mode === "color" && <ColorGrid />}
         {this.state.mode === "number" && <SymbolSelect />}
       </Grid>
@@ -704,8 +724,16 @@ class App extends React.Component {
               variant="contained"
               orientation="vertical"
             >
-              <ResetButton/>
-              <Button onClick={DrawUndo}>Undo</Button>
+              <ResetButton />
+            </ButtonGroup>
+          </Box>
+          <Box margin="30px">
+            <ButtonGroup
+              fullWidth={true}
+              size="large"
+              variant="contained"
+              orientation="vertical"
+            >
               <Button onClick={DrawDelete}>Delete</Button>
             </ButtonGroup>
           </Box>

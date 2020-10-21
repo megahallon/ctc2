@@ -86,6 +86,7 @@ let drag = false;
 let drag_toggle = null;
 let drag_button = -1;
 let undo_stack = [];
+let redo_stack = [];
 let current = null;
 let outer = null;
 let underlay = null;
@@ -98,6 +99,7 @@ function reset() {
   matrix = [];
   stuff = [];
   undo_stack = [];
+  redo_stack = [];
   current = null;
   outer = null;
   underlay = null;
@@ -206,19 +208,44 @@ export function DrawSymbol(element, page, num, size) {
   stage.draw();
 }
 
+function save_state() {
+  let state = [];
+  each_cell(m => {
+    state.push({
+      x: m.x,
+      y: m.y,
+      normal: m.normal.text.text(),
+      center: m.center.text.text(),
+      corner: m.corner.map(c => c.text.text()),
+      side: m.side.map(s => s.text.text()),
+      color: m.r_color.fill()
+    });
+  });
+  return state;
+}
+
+function save_undo() {
+  let state = save_state();
+  undo_stack.push(state);
+}
+
+function load_state(state) {
+  state.forEach(c => {
+    let m = get(c.x, c.y);
+    m.normal.text.text(c.normal);
+    m.center.text.text(c.center);
+    c.corner.forEach((c, i) => m.corner[i].text.text(c));
+    c.side.forEach((c, i) => m.side[i].text.text(c));
+    m.r_color.fill(c.color);
+  });
+}
+
 function _set_cell(lock, pos, mode, color, newtext) {
   let x = pos[0];
   let y = pos[1];
   let b = null;
   if (pos.length === 3) b = get(...pos);
   let m = get(x, y);
-  let undo_entry = {
-    mode: mode,
-    x: x,
-    y: y,
-    newtext: newtext,
-    old_normal: m.normal.text.text(),
-  };
 
   if (!m.main_grid && mode !== "normal" && !lock) {
     return;
@@ -319,8 +346,6 @@ function _set_cell(lock, pos, mode, color, newtext) {
       m.fill = color;
     }
   }
-  undo_entry.normal = m.normal.text.text();
-  undo_stack.push(undo_entry);
 }
 
 function keyup(event) {
@@ -339,6 +364,8 @@ function lock_cell(pos, mode, color, newtext) {
 }
 
 export function DrawSetNumber(number) {
+  save_undo();
+
   let symbol = "" + number;
   if (symbol_page > 0) symbol = "#" + symbol_page + number;
   if (boundary) {
@@ -350,12 +377,13 @@ export function DrawSetNumber(number) {
     if (count > 1 && solve_mode && mode === "normal")
       mode = "center";
     each_mark(m => set_cell([m.x, m.y], mode, current_color, symbol));
-    if (count > 1) undo_stack.push({ mode: "group", count: count });
   }
   scene.draw();
 }
 
 export function DrawSetColor(color_index) {
+  save_undo();
+
   current_color = color_index;
   if (current_mode === "color") {
     each_mark(m => {
@@ -406,6 +434,8 @@ function keydown(event) {
     return;
   }
 
+  save_undo();
+
   if (boundary) {
     set_cell(boundary, "boundary", current_color, newtext);
   } else {
@@ -422,7 +452,6 @@ function keydown(event) {
           set_cell([m.x, m.y], current_mode, color, null);
       } else set_cell([m.x, m.y], mode, current_color, newtext);
     });
-    if (count > 1) undo_stack.push({ mode: "group", count: count });
   }
   scene.draw();
 }
@@ -994,19 +1023,14 @@ export function DrawDelete() {
     }
   }
 
-  let count = 0;
+  save_undo();
 
   if (boundary) {
     set_cell(boundary, "boundary", null, "");
   } else {
     each_mark(m => {
       set_cell([m.x, m.y], "reset", null, "");
-      ++count;
     });
-  }
-
-  if (count > 1) {
-    undo_stack.push({ mode: "group", count: count });
   }
 
   scene.draw();
@@ -1021,29 +1045,30 @@ export function DrawReset() {
     stuff.forEach((s) => s.objs.forEach((o) => o.destroy()));
     stuff = [];
   }
+
+  undo_stack = [];
+  redo_stack = [];
+
   scene.draw();
 }
 
 export function DrawUndo() {
-  if (undo_stack.length === 0) return;
-  let u = undo_stack.pop();
-  let count = 0;
-  if (u.mode === "group") {
-    count = u.count;
-    u = undo_stack.pop();
-  }
-  do {
-    if (u.mode === "normal") {
-      set_cell([u.x, u.y], u.mode, current_color, u.old_normal);
-    } else if (u.mode === "center" || u.mode === "corner") {
-      set_cell([u.x, u.y], u.mode, current_color, u.newtext);
-    }
-    undo_stack.pop();
-    --count;
-    if (count > 0) {
-      u = undo_stack.pop();
-    }
-  } while (count > 0);
+  if (undo_stack.length === 0)
+    return;
+  let state = save_state();
+  redo_stack.push(state);
+  state = undo_stack.pop();
+  load_state(state);
+  scene.draw();
+}
+
+export function DrawRedo() {
+  if (redo_stack.length === 0)
+    return;
+  let state = save_state();
+  undo_stack.push(state);
+  state = redo_stack.pop();
+  load_state(state);
   scene.draw();
 }
 
