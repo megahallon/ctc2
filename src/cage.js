@@ -1,12 +1,25 @@
 import { Line } from "konva";
 import { DrawColorPremul } from "./draw";
 
-export function draw_cage(ctx, cells, style, color) {
-  if (style === "dash") return draw_dash_cage(ctx, cells, color);
-  if (style === "edge") return draw_edge_cage(ctx, cells, color);
+export function draw_cage(ctx, cells, _style, color) {
+  let [style, size] = _style.split(":");
+  let width = 0;
+  switch (size) {
+    case "thin":
+      width = ctx.cell_size * ctx.thin_grid_line;
+      break;
+    case "medium":
+      width = ctx.cell_size * ctx.medium_grid_line;
+      break;
+    default:
+      width = ctx.cell_size * ctx.fat_grid_line;
+      break;
+  }
+  if (style === "dash") return draw_dash_cage(ctx, cells, width, color);
+  if (style === "edge") return draw_edge_cage(ctx, cells, width, color);
 }
 
-function draw_dash_cage(ctx, cells, color) {
+function draw_dash_cage(ctx, cells, size, color) {
   let corner_offset = ctx.corner_offset;
   let cs = ctx.cell_size;
   let get_cage = (x, y) => {
@@ -41,7 +54,8 @@ function draw_dash_cage(ctx, cells, color) {
     let l = [];
     let add_line = (start, end) => {
       l.push(
-        new Line({points: [...start, ...end],
+        new Line({
+          points: [...start, ...end],
           dash: [ctx.cell_size / 20],
           strokeWidth: 2,
           stroke: color,
@@ -100,14 +114,13 @@ function draw_dash_cage(ctx, cells, color) {
       }
       add_line(start, end);
     }
-    if (l.length > 0)
-      m.cont.add(...l);
+    if (l.length > 0) m.cont.add(...l);
     lines = lines.concat(l);
   });
   return lines;
 }
 
-function draw_edge_cage(ctx, cells, color) {
+function draw_edge_cage(ctx, cells, size, color) {
   let cs = ctx.cell_size;
   let get_cage = (x, y) => {
     return cells.find((e) => e[0] === x && e[1] === y);
@@ -135,9 +148,9 @@ function draw_edge_cage(ctx, cells, color) {
       l.push(
         new Line({
           points: [...start, ...end],
-          strokeWidth: 4,
+          strokeWidth: size,
           stroke: color,
-          lineCap: "round"
+          lineCap: "round",
         })
       );
     };
@@ -161,8 +174,7 @@ function draw_edge_cage(ctx, cells, color) {
       let end = corner[2];
       add_line(start, end);
     }
-    if (l.length > 0)
-      m.ocont.add(...l);
+    if (l.length > 0) m.ocont.add(...l);
     lines.push(...l);
   });
   return lines;

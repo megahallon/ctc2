@@ -2,42 +2,29 @@
 import { Circle, Star, Rect, Group, Text, Line, Arrow } from "konva";
 import { DrawColorPremul } from "./draw";
 
-/*
-class Text2 extends Text
-{
-    makePath(ctx) {
-        const origin = this.getOrigin();
-        ctx.translate(origin.x, origin.y);
-
-        this.path = new window.Path2D();
-        this.path.rect(0, 0, this.width, this.height);
-
-        ctx.fillStyle = "rgba(255,255,255,1)";
-        ctx.fill(this.path);
-        ctx.fillStyle = this.options.fill.toString(ctx);
-
-        ctx.translate(-origin.x, -origin.y);
-
-        super.makePath(ctx);
-
-        return this;
-    }
-}
-*/
-
-export function draw_symbol(container, str, _color, size, bg) {
+export function draw_symbol(container, str, _color, _size, bg) {
   let page = +str.substr(1, 1);
   let symbol = +str.substr(2, 1);
   let color = DrawColorPremul(_color);
-  let cx = size / 2;
-  let cy = size / 2;
+  let cx;
+  let cy;
+  let size;
+  if (typeof _size === "object") {
+    cx = _size[0] / 2;
+    cy = _size[1] / 2;
+    size = Math.min(..._size);
+  } else {
+    size = _size;
+    cx = size / 2;
+    cy = size / 2;
+  }
   let sym;
 
   if (str[0] !== "#") page = 0;
 
   if (page === 0) {
     sym = new Text({
-      x: size * 0.5 - (0.25 * size * str.length),
+      x: size * 0.5 - 0.25 * size * str.length,
       y: size * 0.1,
       text: str,
       fontSize: size,
@@ -257,25 +244,15 @@ export function draw_symbol(container, str, _color, size, bg) {
       });
     }
     if (symbol === 2) {
-      let offset = size * 0.1;
+      let o = size * 0.1;
       sym = new Line({
-        x: offset,
-        y: offset,
-        points: [
-          0,
-          0,
-          size - offset * 2,
-          cy - offset,
-          0,
-          size - offset * 2,
-          0,
-          0,
-        ],
+        points: [o, o, size - o, size / 2, o, size - o, o, o],
         fill: color,
         closed: true,
       });
     }
     if (symbol === 3) {
+      // Kakuro box
       sym = new Group();
       sym.add(new Rect({ width: size, height: size, fill: color }));
       sym.add(
@@ -287,22 +264,62 @@ export function draw_symbol(container, str, _color, size, bg) {
       );
     }
     if (symbol === 4) {
+      // Cross
       let o = size * 0.1;
       sym = new Group();
       sym.add(
         new Line({
+          x: cx - size / 2,
+          y: cy - size / 2,
           points: [o, o, size - o, size - o],
           stroke: color,
           strokeWidth: 3,
+          listening: false,
         })
       );
       sym.add(
         new Line({
+          x: cx - size / 2,
+          y: cy - size / 2,
           points: [o, size - o, size - o, o],
           stroke: color,
           strokeWidth: 3,
+          listening: false,
         })
       );
+    }
+    if (symbol === 5) {
+      let o = size * 0.1;
+      sym = new Line({
+        x: cx - size / 2,
+        y: cy - size / 2,
+        points: [o, o, size - o, size / 2, o, size - o],
+        stroke: color,
+        strokeWidth: 3,
+        listening: false,
+      });
+    }
+    if (symbol === 6) {
+      let o = size * 0.1;
+      sym = new Line({
+        x: cx - size / 2,
+        y: cy - size / 2,
+        points: [size - o, o, o, size / 2, size - o, size - o],
+        stroke: color,
+        strokeWidth: 3,
+        listening: false,
+      });
+    }
+    if (symbol === 7) {
+      let o = size * 0.1;
+      sym = new Line({
+        x: cx - size / 2,
+        y: cy - size / 2,
+        points: [o, o, size / 2, size - o, size - o, o],
+        stroke: color,
+        strokeWidth: 3,
+        listening: false,
+      });
     }
   }
   if (sym) {
@@ -310,7 +327,12 @@ export function draw_symbol(container, str, _color, size, bg) {
       container.symbol.destroy();
     }
     if (bg) {
-      let bg = new Rect({ width: size, height: size, fill: "white", listening: false });
+      let bg = new Rect({
+        width: size,
+        height: size,
+        fill: "white",
+        listening: false,
+      });
       let c = new Group();
       c.add(bg, sym);
       container.symbol = c;

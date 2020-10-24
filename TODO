@@ -5,6 +5,32 @@ fix same color on number symbol
 edge mode solver
 center line solver
 
+3 size on each position
+add 1/4 sides position
+tapa?
+
+undo edges etc
+
+margin squares
+margin lines (extended from rows/columns)
+
+save for edit
+save image
+
+solve mode:
+general: color
+sudoku: normal, center, corner, use 1-9, space for rotation, q/w/e/r
+edgecross: left button: edge, right button: edge cross
+centerline: left drag over cell border: center line, right button: edge cross
+fill: left blue fill, right red fill, configurable colors?
+
+fillomino multi digit?
+
+special:
+star battle: left star, right Cross
+battleship?
+lamps?
+
 
 sudoku checker, paint bad cells
 

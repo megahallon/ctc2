@@ -15,6 +15,7 @@ import {
   DrawReset,
   DrawCheck,
   DrawSetSymbolPage,
+  DrawUpdateGrid,
 } from "./draw";
 import {
   Box,
@@ -248,6 +249,7 @@ class App extends React.Component {
       numberStyle: "normal",
       multiDigit: false,
       numberBackground: false,
+      edgeStyle: "fat",
       cageStyle: "dash",
       pathStyle: "arrow",
       dialogOpen: false,
@@ -279,7 +281,6 @@ class App extends React.Component {
     }
     this.setState({ description: desc }, () => {
       DrawRender(code, this.canvasRef.current, this.state);
-      DrawSetMode(this.state);
     });
 
     document.addEventListener("keydown", this.handleKeyDown);
@@ -369,7 +370,31 @@ class App extends React.Component {
             onChange={(event) => this.setStyle("cageStyle", event.target.value)}
           >
             <MenuItem value="dash">Dashed</MenuItem>
-            <MenuItem value="edge">Edge</MenuItem>
+            <MenuItem value="edge:thin">Edge thin</MenuItem>
+            <MenuItem value="edge:medium">Edge medium </MenuItem>
+            <MenuItem value="edge:fat">Edge fat</MenuItem>
+          </Select>
+        </FormControl>
+      </Box>
+    );
+  }
+
+  edgeStyleBox() {
+    return (
+      <Box margin="10px">
+        <FormControl fullWidth={true}>
+          <InputLabel shrink id="edgestyle-label">
+            Style
+          </InputLabel>
+          <Select
+            labelId="cagestyle-label"
+            fullWidth={true}
+            value={this.state.edgeStyle}
+            onChange={(event) => this.setStyle("edgeStyle", event.target.value)}
+          >
+            <MenuItem value="thin">Thin</MenuItem>
+            <MenuItem value="medium">Medium</MenuItem>
+            <MenuItem value="fat">Fat</MenuItem>
           </Select>
         </FormControl>
       </Box>
@@ -399,7 +424,8 @@ class App extends React.Component {
             <MenuItem value="border">Border</MenuItem>
             <MenuItem value="roundfill">Round fill</MenuItem>
             <MenuItem value="squarefill">Square fill</MenuItem>
-            <MenuItem value="closed">Closed</MenuItem>
+            <MenuItem value="polygon">Polygon</MenuItem>
+            <MenuItem value="polygonfill">Polygon fill</MenuItem>
           </Select>
         </FormControl>
       </Box>
@@ -449,16 +475,7 @@ class App extends React.Component {
           {this.state.mode === "number" && this.numberStyleBox()}
           {this.state.mode === "cage" && this.cageStyleBox()}
           {this.state.mode === "path" && this.pathStyleBox()}
-        </Box>
-        <Box margin="30px">
-          <ButtonGroup
-            fullWidth={true}
-            size="large"
-            variant="contained"
-            orientation="vertical"
-          >
-            <Button onClick={this.generateUrl}>Generate URL</Button>
-          </ButtonGroup>
+          {this.state.mode === "edge" && this.edgeStyleBox()}
         </Box>
         <Box margin="30px">
           <Select
@@ -557,19 +574,28 @@ class App extends React.Component {
     );
   }
 
-  handleChange = (event, newValue) => {
-    this.setState({ [event.target.parentNode.id]: newValue });
-  };
+  handleChange(newValue, type) {
+    this.setState({ [type]: newValue });
+  }
 
-  setGrid = () => {
-    DrawRender(code, this.canvasRef.current, this.state);
-    DrawSetMode(this.state);
+  setGrid(type) {
+    if (
+      [
+        "cellSize",
+        "gridDivWidth",
+        "gridDivHeight",
+        "gridStyle",
+        "gridLeftDiagonal",
+        "gridRightDiagonal",
+      ].includes(type)
+    )
+      DrawUpdateGrid(this.canvasRef.current, this.state);
+    else DrawRender(code, this.canvasRef.current, this.state);
   };
 
   setGridState = (state, value) => {
     this.setState({ [state]: value }, () => {
-      DrawRender(code, this.canvasRef.current, this.state);
-      DrawSetMode(this.state);
+      this.setGrid(state);
     });
   };
 
@@ -586,8 +612,8 @@ class App extends React.Component {
           step={step}
           marks={marks}
           id={type}
-          onChange={this.handleChange}
-          onChangeCommitted={this.setGrid}
+          onChange={(e, newValue) => this.handleChange(newValue, type)}
+          onChangeCommitted={() => this.setGrid(type)}
         />
       </Box>
     );
@@ -611,6 +637,7 @@ class App extends React.Component {
           ["center", "Center"],
           ["corner", "Corner"],
           ["color", "Color"],
+          ["edgecross", "Edge+cross"],
         ];
         break;
       case 1:
@@ -735,6 +762,7 @@ class App extends React.Component {
               orientation="vertical"
             >
               <Button onClick={DrawDelete}>Delete</Button>
+              <Button onClick={this.generateUrl}>Generate URL</Button>
             </ButtonGroup>
           </Box>
           <Box margin="30px">{this.settingRight()}</Box>
