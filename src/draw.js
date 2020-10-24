@@ -607,12 +607,20 @@ function center_line_toggle(x, y, i, style, color) {
       b.centerline = null;
     }
   } else {
+    if (b.centerline) return;
     let points;
     let cp = cell_size / 2;
     let bw = b.bwidth / 2;
     let bh = b.bheight / 2;
-    if (b.btype2 === b_top || b.btype2 === b_bottom) points = [0, -cp, 0, cp];
-    else points = [-cp, 0, cp, 0];
+    if (b.btype2 === b_top || b.btype2 === b_bottom) {
+      if (b.btype2 === b_top && m.y <= grid_top) return;
+      if (b.btype2 === b_bottom && m.y >= grid_top + grid_h - 1) return;
+      points = [0, -cp, 0, cp];
+    } else {
+      if (b.btype2 === b_left && m.x <= grid_left) return;
+      if (b.btype2 === b_right && m.x >= grid_left + grid_w - 1) return;
+      points = [-cp, 0, cp, 0];
+    }
 
     let cline = new Line({
       x: bw,
@@ -633,14 +641,27 @@ let last_toggle = { x: -1, y: -1, i: -1 };
 
 function edge_mousemove(event, x, y, i) {
   if (!drag) return;
+  if (last_toggle.x === x && last_toggle.y === y && last_toggle.i === i) return;
 
-  if (
-    last_toggle_state !== null &&
-    last_toggle.x === x &&
-    last_toggle.y === y &&
-    last_toggle.i === i
-  )
+  if (drag_button === 2 && current_rmode === "edgecross") {
+    if (i !== undefined) {
+      let b = get(x, y).boundary[i];
+      if (drag_toggle) {
+        if (!b.cross) {
+          b.cross = new Group();
+          b.add(b.cross);
+          draw_symbol(b.cross, "#44", sol_text_color, [b.bwidth, b.bheight]);
+        }
+      } else {
+        if (b.cross) {
+          b.cross.destroy();
+          b.cross = null;
+        }
+      }
+      scene.draw();
+    }
     return;
+  }
 
   unmark();
 
@@ -662,15 +683,22 @@ function mousemove(event, x, y) {
 
   if (!drag) return;
 
+  if (drag_button === 2 && current_rmode === "edgecross")
+    return;
+
   if (drag_button === 2 && current_rmode === "cross") {
     let m = get(x, y);
-    m.normal.text.text("");
-    if (m.symcont.symbol) {
-      m.symcont.symbol.destroy();
-      m.symcont.symbol = null;
-      m.symcont.symboltext = "";
+
+    if (drag_toggle) {
+      if (!m.cross) {
+        m.cross = new Group();
+        m.cont.add(m.cross);
+        draw_symbol(m.cross, "#44", sol_text_color, cell_size);
+      }
+    } else if (m.cross) {
+      m.cross.destroy();
+      m.cross = null;
     }
-    if (drag_toggle) draw_symbol(m.symcont, "#44", sol_text_color, cell_size);
     scene.draw();
     return;
   }
@@ -745,16 +773,21 @@ function window_mousedown(event) {
 function mousedown(event, x, y, i) {
   event.evt.stopPropagation();
 
+  drag = true;
+  if (event.evt.type === "touchstart") drag_button = 0;
+  else drag_button = event.evt.button;
+
   if (event.evt.button === 2 && current_rmode === "edgecross") {
     if (i !== undefined) {
       let b = get(x, y).boundary[i];
-      if (b.symbol) {
-        b.symbol.destroy();
-        b.symbol = null;
-        b.symboltext = "";
+      if (b.cross) {
+        b.cross.destroy();
+        b.cross = null;
         drag_toggle = false;
       } else {
-        draw_symbol(b, "#44", sol_text_color, [b.bwidth, b.bheight]);
+        b.cross = new Group();
+        b.add(b.cross);
+        draw_symbol(b.cross, "#44", sol_text_color, [b.bwidth, b.bheight]);
         drag_toggle = true;
       }
       scene.draw();
@@ -764,14 +797,14 @@ function mousedown(event, x, y, i) {
 
   if (event.evt.button === 2 && current_rmode === "cross") {
     let m = get(x, y);
-    m.normal.text.text("");
-    if (m.symcont.symbol) {
-      m.symcont.symbol.destroy();
-      m.symcont.symbol = null;
-      m.symcont.symboltext = "";
+    if (m.cross) {
+      m.cross.destroy();
+      m.cross = null;
       drag_toggle = false;
     } else {
-      draw_symbol(m.symcont, "#44", sol_text_color, cell_size);
+      m.cross = new Group();
+      m.cont.add(m.cross);
+      draw_symbol(m.cross, "#44", sol_text_color, cell_size);
       drag_toggle = true;
     }
     scene.draw();
@@ -781,10 +814,6 @@ function mousedown(event, x, y, i) {
   if (!shift) {
     unmark();
   }
-
-  drag = true;
-  if (event.evt.type === "touchstart") drag_button = 0;
-  else drag_button = event.evt.button;
 
   if (boundary) {
     get(...boundary).strokeWidth(0);
