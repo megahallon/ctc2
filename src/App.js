@@ -11,7 +11,7 @@ import {
   DrawSetNumber,
   DrawSetColor,
   DrawColors,
-  DrawGetDescription,
+  DrawGetMetaData,
   DrawReset,
   DrawCheck,
   DrawSetSymbolPage,
@@ -256,6 +256,9 @@ class App extends React.Component {
       dialogText: "",
       timeStatus: true,
       symbolPage: "0",
+      solveSudoku: true,
+      solveEdge: false,
+      solveCenterLine: false,
     };
   }
 
@@ -275,11 +278,12 @@ class App extends React.Component {
   };
 
   componentDidMount() {
-    let desc = "";
+    let meta = {};
     if (code) {
-      desc = DrawGetDescription(code);
+      meta = DrawGetMetaData(code);
+      if (typeof meta !== "object") meta = { description: meta };
     }
-    this.setState({ description: desc }, () => {
+    this.setState(meta, () => {
       DrawRender(code, this.canvasRef.current, this.state);
     });
 
@@ -304,7 +308,13 @@ class App extends React.Component {
   };
 
   generateUrl = () => {
-    let url = DrawGenerateUrl(this.state.description);
+    let meta = {
+      description: this.state.description,
+      solveSudoku: this.state.solveSudoku,
+      solveEdge: this.state.solveEdge,
+      solveCenterLine: this.state.solveCenterLine,
+    };
+    let url = DrawGenerateUrl(meta);
     this.setState({ dialogText: url, dialogOpen: true });
   };
 
@@ -489,6 +499,7 @@ class App extends React.Component {
             <MenuItem value="margins">Margins</MenuItem>
             <MenuItem value="grid">Grid</MenuItem>
             <MenuItem value="description">Description</MenuItem>
+            <MenuItem value="solve">Solve</MenuItem>
           </Select>
         </Box>
         {this.state.settingsMode === "size" && (
@@ -570,6 +581,51 @@ class App extends React.Component {
             />
           </Box>
         )}
+        {this.state.settingsMode === "solve" && (
+          <Box margin="30px" padding="10px" boxShadow={3}>
+            <FormControl fullWidth={true}>
+              <FormLabel></FormLabel>
+              <FormGroup>
+                <FormControlLabel
+                  fullWidth={true}
+                  control={
+                    <Switch
+                      checked={this.state.solveSudoku}
+                      onChange={(e) => {
+                        this.setState({ solveSudoku: e.target.checked });
+                      }}
+                    />
+                  }
+                  label="Sudoku"
+                />
+                <FormControlLabel
+                  control={
+                    <Switch
+                      fullWidth={true}
+                      checked={this.state.solveEdge}
+                      onChange={(e) => {
+                        this.setState({ solveEdge: e.target.checked });
+                      }}
+                    />
+                  }
+                  label="Edge"
+                />
+                <FormControlLabel
+                  control={
+                    <Switch
+                      fullWidth={true}
+                      checked={this.state.solveCenterLine}
+                      onChange={(e) => {
+                        this.setState({ solveCenterLine: e.target.checked});
+                      }}
+                    />
+                  }
+                  label="Center line"
+                />
+              </FormGroup>
+            </FormControl>
+          </Box>
+        )}
       </Box>
     );
   }
@@ -591,7 +647,7 @@ class App extends React.Component {
     )
       DrawUpdateGrid(this.canvasRef.current, this.state);
     else DrawRender(code, this.canvasRef.current, this.state);
-  };
+  }
 
   setGridState = (state, value) => {
     this.setState({ [state]: value }, () => {
@@ -628,28 +684,16 @@ class App extends React.Component {
   };
 
   renderSolveMode() {
-    let solveStyle = 0;
-    let buttons;
-    switch (solveStyle) {
-      case 0:
-        buttons = [
-          ["normal", "Normal"],
-          ["center", "Center"],
-          ["corner", "Corner"],
-          ["color", "Color"],
-          ["edgecross", "Edge+cross"],
-        ];
-        break;
-      case 1:
-        buttons = [
-          ["edgecross", "Edge+cross"],
-          ["centerline", "Center line"],
-          ["color", "Color"],
-        ];
-        break;
-      default:
-        break;
-    }
+    let buttons = [];
+    if (this.state.solveSudoku)
+      buttons.push(
+        ["normal", "Normal"],
+        ["center", "Center"],
+        ["corner", "Corner"]
+      );
+    if (this.state.solveEdge) buttons.push(["edgecross", "Edge"]);
+    if (this.state.solveCenterLine) buttons.push(["centerline", "Center line"]);
+    buttons.push(["color", "Color"]);
 
     return (
       <Box display="flex" flexDirection="row">
@@ -703,7 +747,7 @@ class App extends React.Component {
           <Box margin="30px">
             <Grid container>
               {this.state.mode === "color" && <ColorGrid num={9} />}
-              {this.state.mode !== "color" &&
+              {["normal", "center", "corner"].includes(this.state.mode) &&
                 [...Array(9).keys()].map((index) => (
                   <Grid key={index} item xs={4}>
                     <Button

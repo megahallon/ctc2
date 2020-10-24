@@ -3,18 +3,7 @@ import { DrawColorPremul } from "./draw";
 
 export function draw_cage(ctx, cells, _style, color) {
   let [style, size] = _style.split(":");
-  let width = 0;
-  switch (size) {
-    case "thin":
-      width = ctx.cell_size * ctx.thin_grid_line;
-      break;
-    case "medium":
-      width = ctx.cell_size * ctx.medium_grid_line;
-      break;
-    default:
-      width = ctx.cell_size * ctx.fat_grid_line;
-      break;
-  }
+  let width = ctx.get_line_width(size);
   if (style === "dash") return draw_dash_cage(ctx, cells, width, color);
   if (style === "edge") return draw_edge_cage(ctx, cells, width, color);
 }
