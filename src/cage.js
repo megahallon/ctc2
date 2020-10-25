@@ -1,20 +1,28 @@
 import { Line } from "konva";
 import { DrawColorPremul } from "./draw";
 
-export function draw_cage(ctx, cells, _style, color) {
+export function DrawCage(ctx, cells, _style, color) {
   let [style, size] = _style.split(":");
   let width = ctx.get_line_width(size);
-  if (style === "dash") return draw_dash_cage(ctx, cells, width, color);
-  if (style === "edge") return draw_edge_cage(ctx, cells, width, color);
+  if (style === "dash") return drawDashCage(ctx, cells, width, color);
+  if (style === "edge") return drawEdgeCage(ctx, cells, width, color);
 }
 
-function draw_dash_cage(ctx, cells, size, color) {
-  let corner_offset = ctx.corner_offset;
+function drawDashCage(ctx, cells, _size, color) {
+  let size = 2; //ctx.cell_size / 32;
+  let corner_offset = ctx.cell_size * 0.08;
   let cs = ctx.cell_size;
   let get_cage = (x, y) => {
     return cells.find((e) => e[0] === x && e[1] === y);
   };
   color = DrawColorPremul(color);
+
+  const corner_pos = [
+    [corner_offset, corner_offset],
+    [cs - corner_offset, corner_offset],
+    [cs - corner_offset, cs - corner_offset],
+    [corner_offset, cs - corner_offset],
+  ];
 
   const corner_ext_pos = [
     [0, corner_offset],
@@ -46,14 +54,14 @@ function draw_dash_cage(ctx, cells, size, color) {
         new Line({
           points: [...start, ...end],
           dash: [ctx.cell_size / 20],
-          strokeWidth: 2,
+          strokeWidth: size,
           stroke: color,
         })
       );
     };
     if (!left) {
-      let start = m.corner_pos[0];
-      let end = m.corner_pos[3];
+      let start = corner_pos[0];
+      let end = corner_pos[3];
       if (up) {
         start = corner_ext_pos[1].slice(0);
         start[1] -= !ul ? 0 : corner_offset;
@@ -65,8 +73,8 @@ function draw_dash_cage(ctx, cells, size, color) {
       add_line(start, end);
     }
     if (!right) {
-      let start = m.corner_pos[1];
-      let end = m.corner_pos[2];
+      let start = corner_pos[1];
+      let end = corner_pos[2];
       if (up) {
         start = corner_ext_pos[2].slice(0);
         start[1] -= !ur ? 0 : corner_offset;
@@ -78,8 +86,8 @@ function draw_dash_cage(ctx, cells, size, color) {
       add_line(start, end);
     }
     if (!up) {
-      let start = m.corner_pos[0];
-      let end = m.corner_pos[1];
+      let start = corner_pos[0];
+      let end = corner_pos[1];
       if (left) {
         start = corner_ext_pos[0].slice(0);
         start[0] -= !ul ? 0 : corner_offset;
@@ -91,8 +99,8 @@ function draw_dash_cage(ctx, cells, size, color) {
       add_line(start, end);
     }
     if (!down) {
-      let start = m.corner_pos[3];
-      let end = m.corner_pos[2];
+      let start = corner_pos[3];
+      let end = corner_pos[2];
       if (left) {
         start = corner_ext_pos[7].slice(0);
         start[0] -= !dl ? 0 : corner_offset;
@@ -109,7 +117,7 @@ function draw_dash_cage(ctx, cells, size, color) {
   return lines;
 }
 
-function draw_edge_cage(ctx, cells, size, color) {
+function drawEdgeCage(ctx, cells, size, color) {
   let cs = ctx.cell_size;
   let get_cage = (x, y) => {
     return cells.find((e) => e[0] === x && e[1] === y);

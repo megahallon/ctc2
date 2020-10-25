@@ -1,17 +1,17 @@
 import { Circle, Line, Arrow } from "konva";
 import { DrawColorPremul } from "./draw";
 
-function center_px(cell_size, p) {
+function center(cell_size, p) {
   return [p[0] * cell_size + cell_size / 2, p[1] * cell_size + cell_size / 2];
 }
 
-export function draw_path(ctx, cells, style, color) {
+export function DrawPath(ctx, cells, style, color) {
   let cell_size = ctx.cell_size;
   color = DrawColorPremul(color);
 
-  let start_px = center_px(cell_size, cells[0]);
+  let start_px = center(cell_size, cells[0]);
   let points = cells.map((p) => {
-    let px = center_px(cell_size, p);
+    let px = center(cell_size, p);
     return [px[0], px[1]];
   });
   if (points.length === 1) points.push(points[points.length - 1]);

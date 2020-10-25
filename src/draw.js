@@ -1,7 +1,7 @@
 import { Stage, Layer, Text, Rect, Group, Line, Circle, Util } from "konva";
-import { draw_cage } from "./cage";
-import { draw_path } from "./path";
-import { draw_symbol } from "./symbols";
+import { DrawCage } from "./cage";
+import { DrawPath } from "./path";
+import { DrawSymbol } from "./symbols";
 import pako from "pako";
 import msgpack from "msgpack-lite";
 import { isEqual, range, findLastIndex, last } from "lodash";
@@ -120,6 +120,34 @@ export function DrawSetSymbolPage(page) {
   symbol_page = page;
 }
 
+class RectHolder {
+  constructor(container, width, height) {
+    this.container = container;
+    this.width = width;
+    this.height = height;
+    this.color = null;
+    this.obj = null;
+  }
+
+  fill(color) {
+    if (color === undefined) return this.color;
+
+    this.color = color;
+    if (color === null) {
+      if (this.obj) {
+        this.obj.destroy();
+        this.obj = null;
+      }
+    } else {
+      if (this.obj === null) {
+        this.obj = new Rect({ width: this.width, height: this.height });
+        this.container.add(this.obj);
+      }
+      this.obj.fill(this.color);
+    }
+  }
+}
+
 class TextHolder {
   constructor(container, color, fontSize, size) {
     this.container = container;
@@ -143,33 +171,11 @@ class TextHolder {
         });
         this.container.add(this.obj);
       } else this.obj.text(this._text);
-
-      if (this.size === 1) {
-        let size = cell_size;
-        let meas = {
-          width: this.fontSize * this._text.length * 0.6,
-          height: this.fontSize,
-        };
-        this.obj.position({
-          x: (size - meas.width) / 2 - size * 0.2,
-          y: (size - meas.height) / 2 - size * 0.1,
-        });
-      } else if (this.size === 2) {
-        let size = 64;
-        let meas = {
-          width: this.fontSize * this._text.length * 0.5,
-          height: this.fontSize,
-        };
-        this.obj.position({
-          x: (size - meas.width) / 2,
-          y: (size - meas.height) / 2,
-        });
-      } else {
-        this.obj.position({
-          x: 0,
-          y: 0,
-        });
-      }
+      let meas = this.obj.measureSize(this._text);
+      this.obj.position({
+        x: (this.size - meas.width) / 2,
+        y: (this.size - meas.height) / 2,
+      });
     } else if (this.obj) {
       this.obj.destroy();
       this.obj = null;
@@ -184,7 +190,7 @@ class TextHolder {
   }
 }
 
-function set_symbol(container, str, color, _size) {
+function setSymbol(container, str, color, _size) {
   let text;
   let size = _size;
   if (container.normal) {
@@ -201,58 +207,68 @@ function set_symbol(container, str, color, _size) {
     if (multi_digit && str !== "") str = (container.symboltext || "") + str;
   }
   if (str[0] === "#" || !text) {
-    draw_symbol(container, str, color, size, number_bg);
+    DrawSymbol(container, str, color, size, number_bg);
   } else {
     text.text(str);
     text.color(color);
   }
 }
 
-export function DrawSymbol(element, page, num, size) {
+export function DrawSymbolElement(element, page, num, size) {
   let stage = new Stage({ container: element, width: size, height: size });
   let layer = new Layer();
-  set_symbol(layer, "#" + page + num, current_color, size);
+  setSymbol(layer, "#" + page + num, current_color, size);
   stage.add(layer);
   stage.draw();
 }
 
-function save_state() {
+function saveState() {
   let state = [];
   each_cell((m) => {
     let s = { x: m.x, y: m.y };
     if (m.normal.text.text() !== "") s.normal = m.normal.text.text();
     else {
       if (m.center.text.text() !== "") s.center = m.center.text.text();
-      if (m.corner.length > 0) s.corner = m.corner.map((c) => c.text.text());
+      s.corner = m.corner.map((c) => c.text.text());
     }
-    if (m.r_color.fillEnabled()) s.color = m.r_color.fill();
+    if (m.r_color.rect.fill()) s.color = m.r_color.rect.fill();
+    if (m.cross) s.cross = true;
+    s.edge = [];
+    s.centerline = [];
+    s.edgecross = [];
+    m.boundary.forEach((b, i) => {
+      if (b.edge && !b.lock) s.edge.push(i);
+      if (b.cross) s.edgecross.push(i);
+      if (b.centerline) s.centerline.push(i);
+    });
     state.push(s);
   });
   return state;
 }
 
-function save_undo() {
-  let state = save_state();
+function saveUndo() {
+  let state = saveState();
   undo_stack.push(state);
 }
 
-function load_state(state) {
-  state.forEach((c) => {
-    let m = get(c.x, c.y);
-    set_cell([c.x, c.y], "reset", null, "");
-    if (c.normal) m.normal.text.text(c.normal);
+function loadState(state) {
+  state.forEach((s) => {
+    let m = get(s.x, s.y);
+    setCell([s.x, s.y], "reset", null, "");
+    if (s.normal) m.normal.text.text(s.normal);
     else {
-      if (c.center) m.center.text.text(c.center);
-      if (c.corner) c.corner.forEach((c, i) => m.corner[i].text.text(c));
-      if (c.color) {
-        m.r_color.fill(c.color);
-        m.r_color.fillEnabled(true);
-      }
+      if (s.center) m.center.text.text(s.center);
+      if (s.corner) s.corner.forEach((c, i) => m.corner[i].text.text(c));
     }
+    if (s.color) m.r_color.rect.fill(s.color);
+    if (s.cross) drawCross(s.x, s.y, true);
+    s.edge.forEach(i => drawEdge(s.x, s.y, i, true));
+    s.edgecross.forEach(i => drawEdgeCross(s.x, s.y, i, true));
+    s.centerline.forEach(i => drawCenterLine(s.x, s.y, i, true));
   });
 }
 
-function _set_cell(lock, pos, mode, color, newtext) {
+function _setCell(lock, pos, mode, color, newtext) {
   let x = pos[0];
   let y = pos[1];
   let b = null;
@@ -270,8 +286,11 @@ function _set_cell(lock, pos, mode, color, newtext) {
     m.center.text.text("");
     m.normal.text.text("");
     m.corner.forEach((c) => c.text.text(""));
-    m.r_color.fill(null);
-    m.r_color.fillEnabled(false);
+    m.r_color.rect.fill(null);
+    if (m.cross) {
+      m.cross.destroy();
+      m.cross = null;
+    }
     m.boundary.forEach((b) => {
       if (b.edge && !b.lock) {
         b.edge.destroy();
@@ -282,10 +301,13 @@ function _set_cell(lock, pos, mode, color, newtext) {
         b.centerline.destroy();
         b.centerline = null;
       }
+      if (b.cross) {
+        b.cross.destroy();
+        b.cross = null;
+      }
     });
     if (lock) {
-      m.r_color_set.fill(null);
-      m.r_color_set.fillEnabled(false);
+      m.r_color_set.rect.fill(null);
       m.fill = -1;
       if (m.symcont.symbol) {
         m.symcont.symbol.destroy();
@@ -310,7 +332,7 @@ function _set_cell(lock, pos, mode, color, newtext) {
       });
     }
   } else if (b) {
-    set_symbol(b, newtext, color);
+    setSymbol(b, newtext, color);
   } else if (mode === "normal") {
     if (!lock) {
       color = sol_text_color;
@@ -320,7 +342,7 @@ function _set_cell(lock, pos, mode, color, newtext) {
         m.color = color;
       }
     }
-    set_symbol(m, newtext, color);
+    setSymbol(m, newtext, color);
     if (newtext[0] !== "#") {
       m.center.text.text("");
       m.corner.forEach((c) => c.text.text(""));
@@ -360,15 +382,12 @@ function _set_cell(lock, pos, mode, color, newtext) {
     if (!lock) {
       if (color === 2) {
         // white == clear in solve mode
-        m.r_color.fill(null);
-        m.r_color.fillEnabled(false);
+        m.r_color.rect.fill(null);
       } else {
-        m.r_color.fill(DrawColors[color]);
-        m.r_color.fillEnabled(true);
+        m.r_color.rect.fill(DrawColors[color]);
       }
     } else {
-      m.r_color_set.fill(DrawColors[color]);
-      m.r_color_set.fillEnabled(true);
+      m.r_color_set.rect.fill(DrawColors[color]);
       m.fill = color;
     }
   }
@@ -380,39 +399,39 @@ function keyup(event) {
   }
 }
 
-function set_cell(pos, mode, color, newtext) {
+function setCell(pos, mode, color, newtext) {
   let lock = !solve_mode;
-  _set_cell(lock, pos, mode, color, newtext);
+  _setCell(lock, pos, mode, color, newtext);
 }
 
 function lock_cell(pos, mode, color, newtext) {
-  _set_cell(true, pos, mode, color, newtext);
+  _setCell(true, pos, mode, color, newtext);
 }
 
 export function DrawSetNumber(number) {
-  save_undo();
+  saveUndo();
 
   let symbol = "" + number;
   if (symbol_page > 0) symbol = "#" + symbol_page + number;
   if (boundary) {
-    set_cell(boundary, "boundary", current_color, symbol);
+    setCell(boundary, "boundary", current_color, symbol);
   } else {
     let count = 0;
     let mode = current_mode;
     each_mark((m) => ++count);
     if (count > 1 && solve_mode && mode === "normal") mode = "center";
-    each_mark((m) => set_cell([m.x, m.y], mode, current_color, symbol));
+    each_mark((m) => setCell([m.x, m.y], mode, current_color, symbol));
   }
   scene.draw();
 }
 
 export function DrawSetColor(color_index) {
-  save_undo();
+  saveUndo();
 
   current_color = color_index;
   if (current_mode === "color") {
     each_mark((m) => {
-      set_cell([m.x, m.y], "color", color_index, null);
+      setCell([m.x, m.y], "color", color_index, null);
     });
     scene.draw();
   }
@@ -459,10 +478,10 @@ function keydown(event) {
     return;
   }
 
-  save_undo();
+  saveUndo();
 
   if (boundary) {
-    set_cell(boundary, "boundary", current_color, newtext);
+    setCell(boundary, "boundary", current_color, newtext);
   } else {
     let count = 0;
     each_mark((m) => ++count);
@@ -473,8 +492,8 @@ function keydown(event) {
       if (current_mode === "color") {
         let color = +newtext - 1;
         if (color >= 0 && color <= 9)
-          set_cell([m.x, m.y], current_mode, color, null);
-      } else set_cell([m.x, m.y], mode, current_color, newtext);
+          setCell([m.x, m.y], current_mode, color, null);
+      } else setCell([m.x, m.y], mode, current_color, newtext);
     });
   }
   scene.draw();
@@ -512,7 +531,7 @@ function inner_mousemove(event, x, y) {
     }
     current.objs.forEach((o) => o.destroy());
     current.cells.push([x, y]);
-    current.objs = draw_path(ctx, current.cells, current_style, current_color);
+    current.objs = DrawPath(ctx, current.cells, current_style, current_color);
     scene.draw();
   }
 }
@@ -530,31 +549,21 @@ function get_line_width(style) {
   }
 }
 
-function edge_toggle(x, y, i, style, color, lock) {
+function drawEdge(x, y, i, set, style, color, lock = false) {
   let m = get(x, y);
   let b = m.boundary[i];
   let c = solve_mode ? sol_text_color : DrawColors[current_color];
-  if (color !== undefined) c = DrawColors[color];
+  let width = solve_mode ? get_line_width("fat") : get_line_width(style);
   let eo = cell_size * 0.15;
-  let del;
 
-  if (b.lock && solve_mode) return;
-
-  if (last_toggle_state === null) {
-    if (b.edge) last_toggle_state = true;
-    else last_toggle_state = false;
-  }
-  del = last_toggle_state;
-
-  let width = get_line_width(style);
-
-  if (del) {
+  if (!set) {
     if (b.edge) {
       b.edge.destroy();
       b.edge = null;
       delete edges[[x, y, i]];
     }
-  } else if (!b.edge) {
+  }
+  else if (!b.edge) {
     let edge;
     let new_edge = (x, y, x1, y1) => {
       edge = new Line({
@@ -584,30 +593,37 @@ function edge_toggle(x, y, i, style, color, lock) {
     b.lock = lock;
     b.add(edge);
   }
-  scene.draw();
 }
 
-function center_line_toggle(x, y, i, style, color) {
+function edgeToggle(x, y, i, style, color, lock) {
+  let m = get(x, y);
+  let b = m.boundary[i];
+  let set;
+
+  if (b.lock && solve_mode) return;
+
+  if (last_toggle_state === null) {
+    if (b.edge) last_toggle_state = true;
+    else last_toggle_state = false;
+  }
+  set = !last_toggle_state;
+
+  drawEdge(x, y, i, set, style, color, lock);
+}
+
+function drawCenterLine(x, y, i, set, style, color) {
   let m = get(x, y);
   let b = m.boundary[i];
   let c = solve_mode ? sol_text_color : DrawColors[current_color];
   if (color !== undefined) c = DrawColors[color];
   let width = get_line_width(style);
-  let del;
 
-  if (last_toggle_state === null) {
-    if (b.centerline) last_toggle_state = true;
-    else last_toggle_state = false;
-  }
-  del = last_toggle_state;
-
-  if (del) {
+  if (!set) {
     if (b.centerline) {
       b.centerline.destroy();
       b.centerline = null;
     }
-  } else {
-    if (b.centerline) return;
+  } else if (!b.centerline) {
     let points;
     let cp = cell_size / 2;
     let bw = b.bwidth / 2;
@@ -634,30 +650,74 @@ function center_line_toggle(x, y, i, style, color) {
     b.centerline = cline;
     b.add(cline);
   }
-  scene.draw();
+}
+
+function centerLineToggle(x, y, i, style, color) {
+  let m = get(x, y);
+  let b = m.boundary[i];
+  let set;
+
+  if (last_toggle_state === null) {
+    if (b.centerline) last_toggle_state = true;
+    else last_toggle_state = false;
+  }
+  set = !last_toggle_state;
+
+  drawCenterLine(x, y, i, set, style, color);
 }
 
 let last_toggle = { x: -1, y: -1, i: -1 };
 
-function edge_mousemove(event, x, y, i) {
+function hasCross(x, y) {
+  let m = get(x, y);
+  return !!m.cross;
+}
+
+function drawCross(x, y, set) {
+  let m = get(x, y);
+  if (set) {
+    if (!m.cross) {
+      m.cross = new Group();
+      m.add(m.cross);
+      DrawSymbol(m.cross, "#44", sol_text_color, cell_size);
+    }
+  } else {
+    if (m.cross) {
+      m.cross.destroy();
+      m.cross = null;
+    }
+  }
+}
+
+function hasEdgeCross(x, y, i) {
+  let b = get(x, y).boundary[i];
+  return !!b.cross;
+}
+
+function drawEdgeCross(x, y, i, set) {
+  let b = get(x, y).boundary[i];
+  if (set) {
+    if (!b.cross) {
+      b.cross = new Group();
+      b.add(b.cross);
+      DrawSymbol(b.cross, "#44", sol_text_color, [b.bwidth, b.bheight]);
+    }
+  } else if (b.cross) {
+    b.cross.destroy();
+    b.cross = null;
+  }
+}
+
+function edgeMousemove(event, x, y, i) {
   if (!drag) return;
   if (last_toggle.x === x && last_toggle.y === y && last_toggle.i === i) return;
+  last_toggle = { x: x, y: y, i: i };
+
+  saveUndo();
 
   if (drag_button === 2 && current_rmode === "edgecross") {
     if (i !== undefined) {
-      let b = get(x, y).boundary[i];
-      if (drag_toggle) {
-        if (!b.cross) {
-          b.cross = new Group();
-          b.add(b.cross);
-          draw_symbol(b.cross, "#44", sol_text_color, [b.bwidth, b.bheight]);
-        }
-      } else {
-        if (b.cross) {
-          b.cross.destroy();
-          b.cross = null;
-        }
-      }
+      drawEdgeCross(x, y, i, drag_toggle);
       scene.draw();
     }
     return;
@@ -665,12 +725,12 @@ function edge_mousemove(event, x, y, i) {
 
   unmark();
 
-  last_toggle = { x: x, y: y, i: i };
   if (current_mode === "edge") {
-    edge_toggle(x, y, i, current_style, current_color);
+    edgeToggle(x, y, i, current_style, current_color);
   } else {
-    center_line_toggle(x, y, i, current_style, current_color);
+    centerLineToggle(x, y, i, current_style, current_color);
   }
+  scene.draw();
 }
 
 let last_move = [-1, -1];
@@ -683,22 +743,10 @@ function mousemove(event, x, y) {
 
   if (!drag) return;
 
-  if (drag_button === 2 && current_rmode === "edgecross")
-    return;
+  if (drag_button === 2 && current_rmode === "edgecross") return;
 
   if (drag_button === 2 && current_rmode === "cross") {
-    let m = get(x, y);
-
-    if (drag_toggle) {
-      if (!m.cross) {
-        m.cross = new Group();
-        m.cont.add(m.cross);
-        draw_symbol(m.cross, "#44", sol_text_color, cell_size);
-      }
-    } else if (m.cross) {
-      m.cross.destroy();
-      m.cross = null;
-    }
+    drawCross(x, y, drag_toggle);
     scene.draw();
     return;
   }
@@ -715,7 +763,7 @@ function mousemove(event, x, y) {
     }
     if (current.objs) current.objs.forEach((o) => o.destroy());
     current.cells.push([x, y]);
-    current.objs = draw_cage(ctx, current.cells, current_style, current_color);
+    current.objs = DrawCage(ctx, current.cells, current_style, current_color);
   } else {
     mark(x, y);
   }
@@ -779,34 +827,18 @@ function mousedown(event, x, y, i) {
 
   if (event.evt.button === 2 && current_rmode === "edgecross") {
     if (i !== undefined) {
-      let b = get(x, y).boundary[i];
-      if (b.cross) {
-        b.cross.destroy();
-        b.cross = null;
-        drag_toggle = false;
-      } else {
-        b.cross = new Group();
-        b.add(b.cross);
-        draw_symbol(b.cross, "#44", sol_text_color, [b.bwidth, b.bheight]);
-        drag_toggle = true;
-      }
+      drag_toggle = !hasEdgeCross(x, y, i);
+      saveUndo();
+      drawEdgeCross(x, y, i, drag_toggle);
       scene.draw();
     }
     return;
   }
 
   if (event.evt.button === 2 && current_rmode === "cross") {
-    let m = get(x, y);
-    if (m.cross) {
-      m.cross.destroy();
-      m.cross = null;
-      drag_toggle = false;
-    } else {
-      m.cross = new Group();
-      m.cont.add(m.cross);
-      draw_symbol(m.cross, "#44", sol_text_color, cell_size);
-      drag_toggle = true;
-    }
+    drag_toggle = !hasCross(x, y);
+    saveUndo();
+    drawCross(x, y, drag_toggle);
     scene.draw();
     return;
   }
@@ -822,14 +854,16 @@ function mousedown(event, x, y, i) {
 
   if (current_mode === "path") {
     current = { cells: [[x, y]], color: current_color };
-    current.objs = draw_path(ctx, current.cells, current_style, current_color);
+    current.objs = DrawPath(ctx, current.cells, current_style, current_color);
   } else if (current_mode === "cage") {
     current = { cells: [[x, y]], color: current_color };
-    current.objs = draw_cage(ctx, current.cells, current_style, current_color);
+    current.objs = DrawCage(ctx, current.cells, current_style, current_color);
   } else if (current_mode === "edge" && i !== undefined) {
-    edge_toggle(x, y, i, current_style, current_color);
+    saveUndo();
+    edgeToggle(x, y, i, current_style, current_color);
   } else if (current_mode === "centerline" && i !== undefined) {
-    center_line_toggle(x, y, i, current_style, current_color);
+    saveUndo();
+    centerLineToggle(x, y, i, current_style, current_color);
   } else {
     mark(x, y);
   }
@@ -837,10 +871,10 @@ function mousedown(event, x, y, i) {
   scene.draw();
 }
 
-function edge_mouseup(event, x, y, i) {
+function edgeMouseup(event, x, y, i) {
   if (event.evt.button === 2) return;
   if (last_toggle_state === null && current_mode === "edge") {
-    edge_toggle(x, y, i, current_style, current_color);
+    edgeToggle(x, y, i, current_style, current_color);
   }
 }
 
@@ -925,13 +959,13 @@ export function DrawSetMode(state) {
           }
           b.rect.fillEnabled(true);
           b.rect.on("mousemove touchmove", (event) =>
-            edge_mousemove(event, m.x, m.y, i)
+            edgeMousemove(event, m.x, m.y, i)
           );
           b.rect.on("mousedown tap touchstart", (event) =>
             mousedown(event, m.x, m.y, i)
           );
           b.rect.on("mouseup touchend", (event) =>
-            edge_mouseup(event, m.x, m.y, i)
+            edgeMouseup(event, m.x, m.y, i)
           );
         }
       })
@@ -1037,7 +1071,7 @@ function unserialize(data) {
     for (const k in data.edges) {
       let pos = k.split(",").map((x) => +x);
       let [style, color] = data.edges[k];
-      edge_toggle(...pos, style, color, true);
+      edgeToggle(...pos, style, color, true);
     }
   }
 
@@ -1054,9 +1088,9 @@ function unserialize(data) {
   data.stuff.forEach((_s) => {
     let s = { type: _s[0], style: _s[1], color: _s[2], cells: _s[3] };
     if (s.type === type_path) {
-      s.objs = draw_path(ctx, s.cells, s.style, s.color);
+      s.objs = DrawPath(ctx, s.cells, s.style, s.color);
     } else if (s.type === type_cage) {
-      s.objs = draw_cage(ctx, s.cells, s.style, s.color);
+      s.objs = DrawCage(ctx, s.cells, s.style, s.color);
     }
     stuff.push(s);
   });
@@ -1197,13 +1231,13 @@ export function DrawDelete() {
     }
   }
 
-  save_undo();
+  saveUndo();
 
   if (boundary) {
-    set_cell(boundary, "boundary", null, "");
+    setCell(boundary, "boundary", null, "");
   } else {
     each_mark((m) => {
-      set_cell([m.x, m.y], "reset", null, "");
+      setCell([m.x, m.y], "reset", null, "");
     });
   }
 
@@ -1212,7 +1246,7 @@ export function DrawDelete() {
 
 export function DrawReset() {
   each_cell((m) => {
-    set_cell([m.x, m.y], "reset", null, "");
+    setCell([m.x, m.y], "reset", null, "");
   });
 
   if (!solve_mode) {
@@ -1228,23 +1262,23 @@ export function DrawReset() {
 
 export function DrawUndo() {
   if (undo_stack.length === 0) return;
-  let state = save_state();
+  let state = saveState();
   redo_stack.push(state);
   state = undo_stack.pop();
-  load_state(state);
+  loadState(state);
   scene.draw();
 }
 
 export function DrawRedo() {
   if (redo_stack.length === 0) return;
-  let state = save_state();
+  let state = saveState();
   undo_stack.push(state);
   state = redo_stack.pop();
-  load_state(state);
+  loadState(state);
   scene.draw();
 }
 
-function add_grid(layer) {
+function addGrid(layer) {
   let dash = grid_style === "dash" ? [4] : null;
   let dots = grid_style === "dots";
 
@@ -1420,7 +1454,6 @@ function addBoundaries(x, y, boundary) {
 }
 
 function render(wrapper) {
-  corner_offset = cell_size * 0.08;
   hover_offset = cell_size * 0.2;
 
   const margin = cell_size * 0.2;
@@ -1468,18 +1501,10 @@ function render(wrapper) {
         strokeWidth: 0,
         fillEnabled: true,
       });
-      let r_color = new Rect({
-        width: cs,
-        height: cs,
-        strokeWidth: 0,
-        fillEnabled: false,
-      });
-      let r_color_set = new Rect({
-        width: cs,
-        height: cs,
-        strokeWidth: 0,
-        fillEnabled: false,
-      });
+      let r_color = new Group();
+      r_color.rect = new RectHolder(r_color, cs, cs);
+      let r_color_set = new Group();
+      r_color_set.rect = new RectHolder(r_color_set, cs, cs);
       let r_inner = new Rect({
         x: hover_offset,
         y: hover_offset,
@@ -1487,38 +1512,28 @@ function render(wrapper) {
         height: cs - hover_offset * 2,
         fillEnabled: true,
       });
-      let normal = new Group({ x: cell_size * 0.25, y: cell_size * 0.15 });
-      normal.text = new TextHolder(normal, sol_text_color, cell_size * 0.7, 1);
+      let normal = new Group();
+      normal.text = new TextHolder(normal, sol_text_color, cs * 0.7, cs);
       let center = new Group();
-      center.text = new TextHolder(center, sol_text_color, cell_size * 0.3, 2);
+      center.text = new TextHolder(center, sol_text_color, cs * 0.3, cs);
       let corner_pos = [];
-      corner_pos[0] = [corner_offset, corner_offset];
-      corner_pos[1] = [cs - corner_offset, corner_offset];
-      corner_pos[2] = [cs - corner_offset, cs - corner_offset];
-      corner_pos[3] = [corner_offset, cs - corner_offset];
-      corner_pos[4] = [cs / 2, corner_offset];
-      corner_pos[5] = [cs - corner_offset, cs / 2];
-      corner_pos[6] = [cs / 2, cs - corner_offset];
-      corner_pos[7] = [corner_offset, cs / 2];
+      let corner_size = cell_size * 0.2;
+      corner_offset = cell_size * 0;
+      corner_pos[0] = [0, 0];
+      corner_pos[1] = [cs - corner_size, 0];
+      corner_pos[2] = [cs - corner_size, cs - corner_size];
+      corner_pos[3] = [0, cs - corner_size];
+      corner_pos[4] = [(cs - corner_size) / 2, 0];
+      corner_pos[5] = [cs - corner_size, (cs - corner_size) / 2];
+      corner_pos[6] = [(cs - corner_size) / 2, cs - corner_size];
+      corner_pos[7] = [0, (cs - corner_size) / 2];
 
       let corner = [];
       let boundary = [];
       if (main_grid) {
         corner_pos.forEach((p, i) => {
-          p = p.slice(0);
-          p[0] -= cs * 0.025;
-          p[1] -= cs * 0.025;
-          if (i < 4) {
-            if (i === 2 || i === 3) p[1] -= cs * 0.15;
-            if (i === 1 || i === 2) p[0] -= cs * 0.1;
-          } else {
-            if (i === 6) p[1] -= cs * 0.15;
-            if (i === 5 || i === 7) p[1] -= cs * 0.05;
-            if (i === 4 || i === 6) p[0] -= cs * 0.025;
-            if (i === 5) p[0] -= cs * 0.1;
-          }
           let g = new Group({ x: p[0], y: p[1] });
-          g.text = new TextHolder(g, sol_text_color, cs * 0.2, 3);
+          g.text = new TextHolder(g, sol_text_color, cs * 0.2, cs * 0.2);
           corner.push(g);
         });
       }
@@ -1556,7 +1571,7 @@ function render(wrapper) {
     }
   }
 
-  add_grid(gridlayer);
+  addGrid(gridlayer);
 
   ctx.scene = scene;
   ctx.underlay = underlay;

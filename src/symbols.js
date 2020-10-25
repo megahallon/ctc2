@@ -2,7 +2,7 @@
 import { Circle, Star, Rect, Group, Text, Line, Arrow } from "konva";
 import { DrawColorPremul } from "./draw";
 
-export function draw_symbol(container, str, _color, _size, bg) {
+export function DrawSymbol(container, str, _color, _size, bg) {
   let page = +str.substr(1, 1);
   let symbol = +str.substr(2, 1);
   let color = DrawColorPremul(_color);
@@ -24,12 +24,15 @@ export function draw_symbol(container, str, _color, _size, bg) {
 
   if (page === 0) {
     sym = new Text({
-      x: size * 0.5 - 0.25 * size * str.length,
-      y: size * 0.1,
       text: str,
       fontSize: size,
       fill: color,
       listening: false,
+    });
+    let meas = sym.measureSize(str);
+    sym.position({
+      x: cx - meas.width / 2,
+      y: cy - meas.height / 2,
     });
   }
   if (page === 1) {

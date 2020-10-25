@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import "./App.css";
 import {
   DrawRender,
-  DrawSymbol,
+  DrawSymbolElement,
   DrawSetMode,
   DrawUndo,
   DrawRedo,
@@ -140,7 +140,7 @@ function SymbolSelect() {
   useEffect(() => {
     if (+page > 0) {
       for (let i = 0; i < 9; ++i) {
-        DrawSymbol(symbolRef[i].current, page, i + 1, 30);
+        DrawSymbolElement(symbolRef[i].current, page, i + 1, 30);
       }
     }
     DrawSetSymbolPage(+page);
