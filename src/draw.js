@@ -379,16 +379,20 @@ function _setCell(lock, pos, mode, color, newtext) {
     let i = 0;
     m.corner.forEach((c) => c.text.text(text[i++] || ""));
   } else if (mode === "color") {
+    // white == clear
     if (!lock) {
       if (color === 2) {
-        // white == clear in solve mode
         m.r_color.rect.fill(null);
       } else {
         m.r_color.rect.fill(DrawColors[color]);
       }
     } else {
-      m.r_color_set.rect.fill(DrawColors[color]);
-      m.fill = color;
+      if (color === 2) {
+        m.r_color_set.rect.fill(null);
+      } else {
+        m.r_color_set.rect.fill(DrawColors[color]);
+        m.fill = color;
+      }
     }
   }
 }
@@ -467,10 +471,14 @@ function keydown(event) {
     let c = cursor.slice();
     if (!shift) unmark();
     cursor = c;
-    if (event.key === "ArrowUp" && cursor[1] > 0) cursor[1] -= 1;
-    if (event.key === "ArrowDown" && cursor[1] < grid_h - 1) cursor[1] += 1;
-    if (event.key === "ArrowLeft" && cursor[0] > 0) cursor[0] -= 1;
-    if (event.key === "ArrowRight" && cursor[0] < grid_w - 1) cursor[0] += 1;
+    if (event.key === "ArrowUp") cursor[1] -= 1;
+    if (cursor[1] < 0) cursor[1] = grid_h - 1;
+    if (event.key === "ArrowDown") cursor[1] += 1;
+    if (cursor[1] >= grid_h) cursor[1] = 0;
+    if (event.key === "ArrowLeft") cursor[0] -= 1;
+    if (cursor[0] < 0) cursor[0] = grid_w - 1;
+    if (event.key === "ArrowRight") cursor[0] += 1;
+    if (cursor[0] >= grid_w) cursor[0] = 0;
     mark(cursor[0], cursor[1]);
     scene.draw();
     return;

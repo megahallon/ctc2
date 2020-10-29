@@ -1,5 +1,55 @@
-import { Circle, Line, Arrow } from "konva";
-import { DrawColorPremul } from "./draw";
+import { Circle, Line } from "konva";
+import { DrawColors } from "./draw";
+
+class Thermo extends Line {
+  _sceneFunc(context) {
+    let points = this.points();
+    let length = points.length;
+    context.beginPath();
+    context.moveTo(points[0], points[1]);
+    context.arc(points[0], points[1], 16, 0, 2 * Math.PI, true);
+    context.moveTo(points[0], points[1]);
+    for (let n = 2; n < length; n += 2) {
+      context.lineTo(points[n], points[n + 1]);
+    }
+    context.strokeShape(this);
+  }
+}
+
+class Arrow extends Line {
+  constructor(config) {
+    super(config);
+    this.arrowLength = config.arrowLength;
+  }
+
+  _sceneFunc(context) {
+    let points = this.points();
+    let length = points.length;
+    context.beginPath();
+    context.moveTo(points[0], points[1]);
+    for (let n = 2; n < length; n += 2) {
+      context.lineTo(points[n], points[n + 1]);
+    }
+    let p0x = points[points.length - 2];
+    let p0y = points[points.length - 1];
+    let p1x = points[points.length - 4];
+    let p1y = points[points.length - 3];
+    let dx = p1x - p0x;
+    let dy = p1y - p0y;
+    let dl = Math.sqrt(dx ** 2 + dy ** 2);
+    if (dl > 0) {
+      let a = Math.atan2(dy, dx);
+      let a1 = a + Math.PI / 4;
+      let a2 = a - Math.PI / 4;
+      let al = this.arrowLength;
+      let w = this.strokeWidth() / 2;
+      context.moveTo(p0x + al * Math.cos(a1), p0y + al * Math.sin(a1));
+      context.lineTo(p0x - dx * w / dl, p0y - dy * w / dl);
+      context.lineTo(p0x + al * Math.cos(a2), p0y + al * Math.sin(a2));
+    }
+    context.strokeShape(this);
+  }
+}
 
 function center(cell_size, p) {
   return [p[0] * cell_size + cell_size / 2, p[1] * cell_size + cell_size / 2];
@@ -7,7 +57,7 @@ function center(cell_size, p) {
 
 export function DrawPath(ctx, cells, style, color) {
   let cell_size = ctx.cell_size;
-  color = DrawColorPremul(color);
+  color = DrawColors[color];
 
   let start_px = center(cell_size, cells[0]);
   let points = cells.map((p) => {
@@ -35,14 +85,11 @@ export function DrawPath(ctx, cells, style, color) {
   });
 
   if (style === "thermo") {
-    let bulb = new Circle({
-      x: start_px[0],
-      y: start_px[1],
-      radius: cell_size * 0.4,
-      fill: color,
+    let thermo = new Thermo({
+      ...roundLine,
+      strokeWidth: cell_size * 0.3,
     });
-    let line = newLine(cell_size * 0.3);
-    objs.push(bulb, line);
+    objs.push(thermo);
   } else if (style === "polygon") {
     let strokeWidth = cell_size * 0.05;
     let line = new Line({
@@ -100,21 +147,16 @@ export function DrawPath(ctx, cells, style, color) {
     });
     objs.push(line);
   } else if (style === "arrowcircle" || style === "arrow") {
-    let strokeWidth = cell_size * 0.07;
-    if (points.length > 1) {
-      let arrow = new Arrow({
-        points: points,
-        stroke: color,
-        strokeWidth: strokeWidth,
-        arrow: cell_size * 0.3,
-      });
-      objs.push(arrow);
-    }
-    let line = new Line({
-      ...squareLine,
+    let strokeWidth = cell_size * 0.1;
+    let arrow = new Arrow({
+      points: points,
+      stroke: color,
       strokeWidth: strokeWidth,
+      lineCap: "square",
+      lineJoin: "miter",
+      arrowLength: cell_size * 0.3
     });
-    objs.push(line);
+    objs.push(arrow);
     if (style === "arrowcircle") {
       let bulb = new Circle({
         x: start_px[0],

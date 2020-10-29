@@ -134,7 +134,7 @@ function SymbolSelect() {
   symbolRef[8] = useRef(null);
   symbolRef[9] = useRef(null);
 
-  const pages = ["Numbers", "Circles", "Arrows", "Arrows 2", "Misc"];
+  const pages = ["Numbers", "Circles", "Arrows", "Arrows 2", "Misc", "Squares"];
   const setSymbolPage = (e) => setPage(e.target.value);
 
   useEffect(() => {
@@ -323,7 +323,7 @@ class App extends React.Component {
       <Box margin="10px">
         <FormControl fullWidth={true}>
           <InputLabel shrink id="numberstyle-label">
-            Style
+            Position
           </InputLabel>
           <Select
             labelId="numberstyle-label"
@@ -476,7 +476,7 @@ class App extends React.Component {
             value={this.state.mode}
             onChange={(event) => this.setMode(event.target.value)}
           >
-            <MenuItem value="number">Number</MenuItem>
+            <MenuItem value="number">Symbol</MenuItem>
             <MenuItem value="cage">Cage</MenuItem>
             <MenuItem value="path">Path</MenuItem>
             <MenuItem value="color">Color</MenuItem>

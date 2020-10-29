@@ -82,6 +82,16 @@ export function DrawSymbol(container, str, _color, _size, bg) {
         dash: [4],
       });
     }
+    if (symbol === 5) {
+      // dash circle outline
+      sym = new Circle({
+        x: cx,
+        y: cy,
+        radius: (0.8 * size) / 2,
+        fill: color,
+        strokeWidth: 0,
+      });
+    }
   }
   if (page === 2) {
     // Little killer style arrows
@@ -98,7 +108,7 @@ export function DrawSymbol(container, str, _color, _size, bg) {
       sym = new Arrow({
         x: cx,
         y: cy,
-        points: [0, 0, size - cx - offset, size - cy - offset],
+        points: [offset, offset, size - cx - offset, size - cy - offset],
         ...aopt,
       });
     }
@@ -322,6 +332,63 @@ export function DrawSymbol(container, str, _color, _size, bg) {
         stroke: color,
         strokeWidth: 3,
         listening: false,
+      });
+    }
+    if (symbol === 8) {
+      let o = size * 0.1;
+      sym = new Line({
+        x: cx - size / 2,
+        y: cy - size / 2,
+        points: [o, size - o, size / 2, o, size - o, size - o],
+        stroke: color,
+        strokeWidth: 3,
+        listening: false,
+      });
+    }
+  }
+  if (page == 5) {
+    let o = size * 0.1;
+    let w = 2;
+    let rect = {
+      x: o,
+      y: o,
+      width: size - o * 2,
+      height: size - o * 2
+    };
+    if (symbol === 1) {
+      sym = new Rect({...rect,
+        fill: color,
+        stroke: "black",
+        strokeWidth: w,
+      });
+    }
+    if (symbol === 2) {
+      sym = new Rect({...rect,
+        fill: null,
+        stroke: color,
+        strokeWidth: 2,
+      });
+    }
+    if (symbol === 3) {
+      sym = new Rect({...rect,
+        fill: color,
+        stroke: "black",
+        strokeWidth: w,
+        dash: [4],
+      });
+    }
+    if (symbol === 4) {
+      sym = new Rect({...rect,
+        fill: null,
+        stroke: color,
+        strokeWidth: 2,
+        dash: [4],
+      });
+    }
+    if (symbol === 5) {
+      sym = new Rect({...rect,
+        fill: color,
+        strokeWidth: 0,
       });
     }
   }
