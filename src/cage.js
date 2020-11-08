@@ -3,7 +3,7 @@ import { DrawColorPremul } from "./draw";
 
 export function DrawCage(ctx, cells, _style, color) {
   let [style, size] = _style.split(":");
-  let width = ctx.get_line_width(size);
+  let width = ctx.getLineWidth(size);
   if (style === "dash") return drawDashCage(ctx, cells, width, color);
   if (style === "edge") return drawEdgeCage(ctx, cells, width, color);
 }

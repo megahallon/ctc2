@@ -1,5 +1,6 @@
 import { Circle, Line } from "konva";
 import { DrawColors } from "./draw";
+import Arrow from "./arrow";
 
 class Thermo extends Line {
   _sceneFunc(context) {
@@ -7,45 +8,10 @@ class Thermo extends Line {
     let length = points.length;
     context.beginPath();
     context.moveTo(points[0], points[1]);
-    context.arc(points[0], points[1], 16, 0, 2 * Math.PI, true);
+    context.arc(points[0], points[1], this.strokeWidth() * 0.8, 0, 2 * Math.PI, true);
     context.moveTo(points[0], points[1]);
     for (let n = 2; n < length; n += 2) {
       context.lineTo(points[n], points[n + 1]);
-    }
-    context.strokeShape(this);
-  }
-}
-
-class Arrow extends Line {
-  constructor(config) {
-    super(config);
-    this.arrowLength = config.arrowLength;
-  }
-
-  _sceneFunc(context) {
-    let points = this.points();
-    let length = points.length;
-    context.beginPath();
-    context.moveTo(points[0], points[1]);
-    for (let n = 2; n < length; n += 2) {
-      context.lineTo(points[n], points[n + 1]);
-    }
-    let p0x = points[points.length - 2];
-    let p0y = points[points.length - 1];
-    let p1x = points[points.length - 4];
-    let p1y = points[points.length - 3];
-    let dx = p1x - p0x;
-    let dy = p1y - p0y;
-    let dl = Math.sqrt(dx ** 2 + dy ** 2);
-    if (dl > 0) {
-      let a = Math.atan2(dy, dx);
-      let a1 = a + Math.PI / 4;
-      let a2 = a - Math.PI / 4;
-      let al = this.arrowLength;
-      let w = this.strokeWidth() / 2;
-      context.moveTo(p0x + al * Math.cos(a1), p0y + al * Math.sin(a1));
-      context.lineTo(p0x - dx * w / dl, p0y - dy * w / dl);
-      context.lineTo(p0x + al * Math.cos(a2), p0y + al * Math.sin(a2));
     }
     context.strokeShape(this);
   }
@@ -57,6 +23,9 @@ function center(cell_size, p) {
 
 export function DrawPath(ctx, cells, style, color) {
   let cell_size = ctx.cell_size;
+  let radius = ctx.radius * cell_size;
+  let strokeWidth = ctx.getLineWidth("medium");
+
   color = DrawColors[color];
 
   let start_px = center(cell_size, cells[0]);
@@ -91,7 +60,6 @@ export function DrawPath(ctx, cells, style, color) {
     });
     objs.push(thermo);
   } else if (style === "polygon") {
-    let strokeWidth = cell_size * 0.05;
     let line = new Line({
       ...roundLine,
       strokeWidth: strokeWidth,
@@ -100,7 +68,6 @@ export function DrawPath(ctx, cells, style, color) {
     });
     objs.push(line);
   } else if (style === "polygonfill") {
-    let strokeWidth = cell_size * 0.05;
     let line = new Line({
       ...roundLine,
       strokeWidth: strokeWidth,
@@ -109,19 +76,20 @@ export function DrawPath(ctx, cells, style, color) {
     });
     objs.push(line);
   } else if (style === "thin") {
-    let line = newLine(cell_size * 0.05);
+    let line = newLine(ctx.getLineWidth("thin"));
     objs.push(line);
   } else if (style === "medium") {
-    let line = newLine(cell_size * 0.15);
+    let line = newLine(ctx.getLineWidth("medium"));
     objs.push(line);
   } else if (style === "fat") {
-    let line = newLine(cell_size * 0.3);
+    let line = newLine(ctx.getLineWidth("fat"));
     objs.push(line);
   } else if (style === "roundborder") {
-    let line1 = newLine(cell_size * 0.8);
+    let w = cell_size * ctx.radius * 2 + ctx.getLineWidth("medium");
+    let line1 = newLine(w);
     let line2 = new Line({
       ...roundLine,
-      strokeWidth: cell_size * 0.67,
+      strokeWidth: w - ctx.getLineWidth("medium") * 2,
       stroke: "white",
     });
     objs.push(line1, line2);
@@ -138,7 +106,7 @@ export function DrawPath(ctx, cells, style, color) {
     });
     objs.push(line1, line2);
   } else if (style === "roundfill") {
-    let line = newLine(cell_size * 0.8);
+    let line = newLine(cell_size * ctx.radius * 2);
     objs.push(line);
   } else if (style === "squarefill") {
     let line = new Line({
@@ -147,12 +115,11 @@ export function DrawPath(ctx, cells, style, color) {
     });
     objs.push(line);
   } else if (style === "arrowcircle" || style === "arrow") {
-    let strokeWidth = cell_size * 0.1;
     let arrow = new Arrow({
       points: points,
       stroke: color,
       strokeWidth: strokeWidth,
-      lineCap: "square",
+      lineCap: "butt",
       lineJoin: "miter",
       arrowLength: cell_size * 0.3
     });
@@ -161,7 +128,7 @@ export function DrawPath(ctx, cells, style, color) {
       let bulb = new Circle({
         x: start_px[0],
         y: start_px[1],
-        radius: cell_size * 0.4,
+        radius: radius,
         fill: "white",
         strokeWidth: strokeWidth,
         stroke: color,

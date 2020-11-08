@@ -105,12 +105,10 @@ function ResetButton() {
   const confirm = useConfirm();
 
   const onClick = () => {
-    confirm({ description: "Remove all changes in grid?" })
-      .then(() => {
-        DrawReset();
-        this.setState({ timeStatus: true });
-      })
-      .catch(() => null);
+    confirm({ description: "Remove all changes in grid?" }).then(() => {
+      DrawReset();
+      this.setState({ timeStatus: true });
+    }).catch(() => undefined);
   };
 
   return (
@@ -134,7 +132,15 @@ function SymbolSelect() {
   symbolRef[8] = useRef(null);
   symbolRef[9] = useRef(null);
 
-  const pages = ["Numbers", "Circles", "Arrows", "Arrows 2", "Misc", "Squares"];
+  const pages = [
+    "Numbers",
+    "Circles",
+    "Arrows",
+    "Arrows 2",
+    "Misc",
+    "Squares",
+    "Lines",
+  ];
   const setSymbolPage = (e) => setPage(e.target.value);
 
   useEffect(() => {
@@ -160,7 +166,12 @@ function SymbolSelect() {
       <Grid container>
         {[...Array(9).keys()].map((index) => (
           <Grid key={index} item xs={4}>
-            <Button variant="outlined" onClick={() => DrawSetNumber(index + 1)}>
+            <Button
+              variant="outlined"
+              onClick={(e) => {
+                DrawSetNumber(index + 1);
+              }}
+            >
               {+page === 0 && (
                 <div style={{ fontSize: "20px" }}>{index + 1}</div>
               )}
@@ -225,8 +236,6 @@ class App extends React.Component {
   constructor(props) {
     super(props);
     this.canvasRef = React.createRef();
-    this.symbolRef = [];
-    for (let i = 0; i < 9; ++i) this.symbolRef.push(React.createRef());
 
     this.state = {
       solveMode: solveMode,
@@ -338,6 +347,7 @@ class App extends React.Component {
             <MenuItem value="side">Side</MenuItem>
             <MenuItem value="quarter">Quarter</MenuItem>
             <MenuItem value="boundary">Boundary</MenuItem>
+            <MenuItem value="bigboundary">Big boundary</MenuItem>
           </Select>
           <FormControlLabel
             control={
@@ -471,6 +481,9 @@ class App extends React.Component {
     return (
       <Box minWidth="250px">
         <Box margin="30px">
+          <Typography>
+            Draw
+          </Typography>
           <Select
             fullWidth={true}
             value={this.state.mode}
@@ -488,6 +501,9 @@ class App extends React.Component {
           {this.state.mode === "edge" && this.edgeStyleBox()}
         </Box>
         <Box margin="30px">
+          <Typography>
+            Settings
+          </Typography>
           <Select
             fullWidth={true}
             value={this.state.settingsMode}
@@ -616,7 +632,7 @@ class App extends React.Component {
                       fullWidth={true}
                       checked={this.state.solveCenterLine}
                       onChange={(e) => {
-                        this.setState({ solveCenterLine: e.target.checked});
+                        this.setState({ solveCenterLine: e.target.checked });
                       }}
                     />
                   }
@@ -731,7 +747,6 @@ class App extends React.Component {
               <Button onClick={DrawUndo}>Undo</Button>
               <Button onClick={DrawRedo}>Redo</Button>
               <Button onClick={DrawDelete}>Delete</Button>
-              <Button onClick={this.check}>Check</Button>
             </ButtonGroup>
           </Box>
           <Box margin="30px">
@@ -741,6 +756,7 @@ class App extends React.Component {
               variant="contained"
               orientation="vertical"
             >
+              <Button onClick={this.check}>Check</Button>
               <ResetButton />
             </ButtonGroup>
           </Box>
@@ -795,7 +811,8 @@ class App extends React.Component {
               variant="contained"
               orientation="vertical"
             >
-              <ResetButton />
+              <Button onClick={DrawDelete}>Delete</Button>
+              <Button onClick={this.generateUrl}>Generate URL</Button>
             </ButtonGroup>
           </Box>
           <Box margin="30px">
@@ -805,8 +822,7 @@ class App extends React.Component {
               variant="contained"
               orientation="vertical"
             >
-              <Button onClick={DrawDelete}>Delete</Button>
-              <Button onClick={this.generateUrl}>Generate URL</Button>
+              <ResetButton />
             </ButtonGroup>
           </Box>
           <Box margin="30px">{this.settingRight()}</Box>

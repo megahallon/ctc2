@@ -1,33 +1,35 @@
-/*
 import { Line } from "konva";
 
 export default class Arrow extends Line {
-    trace (path) {
-        super.trace(path);
-        let p = [{x: 0, y: 0}].concat(this.points);
-        let last = p[p.length - 1];
-        let last1 = p[p.length - 2];
-        let dx = last.x - last1.x;
-        let dy = last1.y - last.y;
-        let a = Math.atan2(dy, dx);
-        let a2 = this.options.arrowAngle * Math.PI / 180;
-        let ax = this.options.arrow * Math.cos(a + a2);
-        let ay = this.options.arrow * Math.sin(a + a2);
-        let ax2 = this.options.arrow * Math.cos(a - a2);
-        let ay2 = this.options.arrow * Math.sin(a - a2);
-        path.moveTo(last.x, last.y);
-        path.lineTo(last.x - ax, last.y + ay);
-        path.moveTo(last.x, last.y);
-        path.lineTo(last.x - ax2, last.y + ay2);
-        return this;
-    }
+  constructor(config) {
+    super(config);
+    this.arrowLength = config.arrowLength;
+  }
 
-    static get defaultOptions() {
-      return {
-          ...super.defaultOptions,
-          arrow: 10,
-          arrowAngle: 45
-      };
+  _sceneFunc(context) {
+    let points = this.points();
+    let length = points.length;
+    context.beginPath();
+    context.moveTo(points[0], points[1]);
+    for (let n = 2; n < length; n += 2) {
+      context.lineTo(points[n], points[n + 1]);
     }
+    let p0x = points[points.length - 2];
+    let p0y = points[points.length - 1];
+    let p1x = points[points.length - 4];
+    let p1y = points[points.length - 3];
+    let dx = p1x - p0x;
+    let dy = p1y - p0y;
+    let dl = Math.sqrt(dx ** 2 + dy ** 2);
+    if (dl > 0) {
+      let a = Math.atan2(dy, dx);
+      let a1 = a + Math.PI / 4;
+      let a2 = a - Math.PI / 4;
+      let al = this.arrowLength;
+      context.moveTo(p0x + al * Math.cos(a1), p0y + al * Math.sin(a1));
+      context.lineTo(p0x, p0y);
+      context.lineTo(p0x + al * Math.cos(a2), p0y + al * Math.sin(a2));
+    }
+    context.strokeShape(this);
+  }
 }
-*/
