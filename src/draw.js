@@ -2,8 +2,8 @@ import { Stage, Layer, Rect, Group, Line, Circle, Util } from "konva";
 import { DrawCage } from "./cage";
 import { DrawPath } from "./path";
 import { DrawSymbol } from "./symbols";
-import { Cell, b_corner, b_side, b_quarter, b_boundary, b_edge, b_bigboundary, b_left, b_top, b_bottom, b_right,
-	 lock_normal, lock_color, lock_boundary } from "./cell";
+import { Cell, b_corner, b_side, b_quarter, b_boundary, b_edge, b_bigboundary,
+         lock_normal, lock_color, lock_boundary } from "./cell";
 import pako from "pako";
 import msgpack from "msgpack-lite";
 import { isEqual, range, findLastIndex, last } from "lodash";
@@ -32,7 +32,7 @@ let cursorVisible = true;
 // Factors for line and circle radius on commoon elements
 const thin_grid_line = 0.01;
 const medium_grid_line = 0.07;
-const fat_grid_line = 0.2;
+const fat_grid_line = 0.15;
 const radius = 0.4;
 
 const type_path = 1;
@@ -141,27 +141,7 @@ export function DrawSymbolElement(element, page, num, size) {
 
 function saveState() {
   let state = [];
-  eachCell((m) => {
-    let s = { x: m.x, y: m.y };
-    if (m.normal.text.text() !== "") s.normal = m.normal.text.text();
-    else {
-      if (m.center.text.text() !== "") s.center = m.center.text.text();
-      s.corner = m.corner.map((c) => c.text.text());
-    }
-    if (m.r_color.rect.fill()) {
-      s.color = m.r_color.rect.fill();
-    }
-    if (m.cross) s.cross = true;
-    s.edge = [];
-    s.centerline = [];
-    s.edgecross = [];
-    m.boundary.forEach((b, i) => {
-      if (b.edge && !b.lock) s.edge.push(i);
-      if (b.cross) s.edgecross.push(i);
-      if (b.centerline) s.centerline.push(i);
-    });
-    state.push(s);
-  });
+  eachCell((m) => state.push(m.saveState()));
   return state;
 }
 
@@ -182,12 +162,11 @@ function loadState(state) {
     if (s.color) m.r_color.rect.fill(s.color);
     else m.r_color.rect.fill(null);
     if (s.cross) drawCross(s.x, s.y, true);
-    s.edge.forEach(i => drawEdge(s.x, s.y, i, true));
-    s.edgecross.forEach(i => drawEdgeCross(s.x, s.y, i, true));
-    s.centerline.forEach(i => drawCenterLine(s.x, s.y, i, true));
+    s.edge.forEach(i => m.drawEdge(i, true));
+    s.edgecross.forEach(i => m.drawEdgeCross(i, true));
+    s.centerline.forEach(i => m.drawCenterLine(i, true));
   });
 }
-
 
 function keyup(event) {
   if (event.key === "Shift") {
@@ -354,52 +333,6 @@ function getLineWidth(style, size) {
   }
 }
 
-function drawEdge(x, y, i, set, style, color, lock = false) {
-  let m = get(x, y);
-  let b = m.boundary[i];
-  let c = solve_mode ? sol_text_color : DrawColors[current_color];
-  let width = solve_mode ? getLineWidth("fat") : getLineWidth(style);
-  let eo = cell_size * 0.15;
-
-  if (!set) {
-    if (b.edge) {
-      b.edge.destroy();
-      b.edge = null;
-      delete edges[[x, y, i]];
-    }
-  }
-  else if (!b.edge) {
-    let edge;
-    let new_edge = (x, y, x1, y1) => {
-      edge = new Line({
-        x: x,
-        y: y,
-        points: [0, 0, x1, y1],
-        strokeWidth: width,
-        stroke: c,
-        lineCap: "round",
-        listening: false,
-      });
-    };
-    switch (b.btype2) {
-      case b_left:
-      case b_right:
-        new_edge(eo, -eo, 0, cell_size);
-        break;
-      case b_top:
-      case b_bottom:
-        new_edge(-eo, eo, cell_size, 0);
-        break;
-      default:
-        break;
-    }
-    edges[[x, y, i]] = [style, color];
-    b.edge = edge;
-    b.lock = lock;
-    b.add(edge);
-  }
-}
-
 function edgeToggle(x, y, i, style, color, lock) {
   let m = get(x, y);
   let b = m.boundary[i];
@@ -413,48 +346,14 @@ function edgeToggle(x, y, i, style, color, lock) {
   }
   set = !last_toggle_state;
 
-  drawEdge(x, y, i, set, style, color, lock);
+  m.drawEdge(i, set, style, getCurrentColor(color), lock);
 }
 
-function drawCenterLine(x, y, i, set, style, color) {
-  let m = get(x, y);
-  let b = m.boundary[i];
+function getCurrentColor(color)
+{
   let c = solve_mode ? sol_text_color : DrawColors[current_color];
   if (color !== undefined) c = DrawColors[color];
-  let width = getLineWidth(style);
-
-  if (!set) {
-    if (b.centerline) {
-      b.centerline.destroy();
-      b.centerline = null;
-    }
-  } else if (!b.centerline) {
-    let points;
-    let cp = cell_size / 2;
-    let bw = b.bwidth / 2;
-    let bh = b.bheight / 2;
-    if (b.btype2 === b_top || b.btype2 === b_bottom) {
-      if (b.btype2 === b_top && m.y <= grid_top) return;
-      if (b.btype2 === b_bottom && m.y >= grid_top + grid_h - 1) return;
-      points = [0, -cp, 0, cp];
-    } else {
-      if (b.btype2 === b_left && m.x <= grid_left) return;
-      if (b.btype2 === b_right && m.x >= grid_left + grid_w - 1) return;
-      points = [-cp, 0, cp, 0];
-    }
-
-    let cline = new Line({
-      x: bw,
-      y: bh,
-      points: points,
-      strokeWidth: width,
-      stroke: c,
-      lineCap: "round",
-      listening: false,
-    });
-    b.centerline = cline;
-    b.add(cline);
-  }
+  return c;
 }
 
 function centerLineToggle(x, y, i, style, color) {
@@ -468,7 +367,7 @@ function centerLineToggle(x, y, i, style, color) {
   }
   set = !last_toggle_state;
 
-  drawCenterLine(x, y, i, set, style, color);
+  m.drawCenterLine(i, set, style, getCurrentColor(color));
 }
 
 let last_toggle = { x: -1, y: -1, i: -1 };
@@ -499,20 +398,6 @@ function hasEdgeCross(x, y, i) {
   return !!b.cross;
 }
 
-function drawEdgeCross(x, y, i, set) {
-  let b = get(x, y).boundary[i];
-  if (set) {
-    if (!b.cross) {
-      b.cross = new Group();
-      b.add(b.cross);
-      DrawSymbol(ctx, b.cross, "#44", sol_text_color, [b.bwidth, b.bheight]);
-    }
-  } else if (b.cross) {
-    b.cross.destroy();
-    b.cross = null;
-  }
-}
-
 function edgeMousemove(event, x, y, i) {
   if (!drag) return;
   if (last_toggle.x === x && last_toggle.y === y && last_toggle.i === i) return;
@@ -522,7 +407,7 @@ function edgeMousemove(event, x, y, i) {
 
   if (drag_button === 2 && current_rmode === "edgecross") {
     if (i !== undefined) {
-      drawEdgeCross(x, y, i, drag_toggle);
+      get(x, y).drawEdgeCross(i, drag_toggle);
       scene.draw();
     }
     return;
@@ -579,17 +464,7 @@ export function mousemove(event, x, y) {
 function markBoundary(x, y, i) {
   unmark();
 
-  let b = get(x, y).boundary[i];
-  if (!b.rect) {
-    b.rect = new Rect({
-      width: b.bwidth,
-      height: b.bheight,
-      fillEnabled: false,
-    });
-    b.add(b.rect);
-  }
-  b.rect.stroke("red");
-  b.rect.strokeWidth(1);
+  get(x, y).markBoundary(i);
   boundary = [x, y, i];
 }
 
@@ -606,7 +481,7 @@ function unmark() {
   cursor = null;
 }
 
-function boundaryMousedown(event, x, y, i) {
+export function boundaryMousedown(event, x, y, i) {
   markBoundary(x, y, i);
   scene.draw();
 }
@@ -634,7 +509,7 @@ export function mousedown(event, x, y, i) {
     if (i !== undefined) {
       drag_toggle = !hasEdgeCross(x, y, i);
       saveUndo();
-      drawEdgeCross(x, y, i, drag_toggle);
+      get(x, y).drawEdgeCross(i, drag_toggle);
       scene.draw();
     }
     return;
@@ -715,14 +590,7 @@ export function DrawSetMode(state) {
   number_bg = state.numberBackground;
   multi_digit = state.multiDigit;
 
-  eachCell((m) =>
-    m.boundary.forEach((b) => {
-      if (b.rect) {
-        b.rect.destroy();
-        b.rect = null;
-      }
-    })
-  );
+  eachCell((m) => m.clearBoundary());
 
   cursorVisible = false;
 
@@ -778,24 +646,7 @@ export function DrawSetMode(state) {
   }
 
   let setBoundary = (type) => {
-    eachCell((m) =>
-      m.boundary.forEach((b, i) => {
-        if (b.btype === type) {
-          if (!b.rect) {
-            b.rect = new Rect({
-              width: b.bwidth,
-              height: b.bheight,
-              fill: null,
-              fillEnabled: true,
-            });
-            b.add(b.rect);
-          }
-          b.rect.on("mousedown touchstart tap", (event) =>
-            boundaryMousedown(event, m.x, m.y, i)
-          );
-        }
-      })
-    );
+    eachCell(m => m.setBoundary(type));
   };
 
   if (state.mode === "number" && state.numberStyle === "corner") {
@@ -945,39 +796,7 @@ function serialize(meta) {
   };
 
   eachCell((m) => {
-    let pos = [m.x, m.y];
-    if (m.lock_type === lock_normal) {
-      if (m.normal.text.text() !== "")
-        out.cells.push([pos, m.lock_type, m.normal.text.text(), m.color]);
-      if (m.symcont.symboltext !== "" && m.symcont.symboltext !== undefined)
-        out.cells.push([
-          pos,
-          m.lock_type,
-          m.symcont.symboltext,
-          m.symcont.symbolcolor,
-          m.symcont.symbolbg
-        ]);
-    }
-    if (m.fill >= 0) {
-      out.cells.push([pos, lock_color, null, m.fill]);
-    }
-    m.boundary.forEach((b, i) => {
-      if (b.symboltext)
-        out.cells.push([
-          [m.x, m.y, i],
-          lock_boundary,
-          b.symboltext,
-          b.symbolcolor,
-          b.symbolbg,
-        ]);
-        if (b.text.text())
-          out.cells.push([
-            [m.x, m.y, i],
-            lock_boundary,
-            b.text.text(),
-            b.text.obj.fill(),
-          ]);
-    });
+    out.cells.push(...m.serialize());
   });
 
   console.log(out);

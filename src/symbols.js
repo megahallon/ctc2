@@ -1,5 +1,5 @@
 //import Arrow from "./arrow";
-import { Circle, Star, Rect, Group, Text, Line } from "konva";
+import { Circle, Star, Rect, Group, Line } from "konva";
 import { DrawColorPremul } from "./draw";
 
 import Arrow from "./arrow";
@@ -19,8 +19,8 @@ export function DrawSymbol(ctx, container, str, _color, _size, bg) {
     if (container.symbol) {
       container.symbol.destroy();
       container.symbol = null;
-      container.symboltext = "";
     }
+    container.symboltext = "";
     return;
   }
 
@@ -41,26 +41,15 @@ export function DrawSymbol(ctx, container, str, _color, _size, bg) {
   if (str[0] !== "#") page = 0;
 
   if (page === 0) {
-    if (container.text) {
-      container.text.text(str);
-      container.text.obj.fill(color);
-      return;
-    }
-    else {
-      sym = new Text({
-        text: str,
-        fontSize: size,
-        fill: color,
-        listening: false,
-      });
-      let meas = sym.measureSize(str);
-      sym.position({
-        x: cx - meas.width / 2,
-        y: cy - meas.height / 2,
-      });
-    }
+    container.text.color(color);
+    container.text.background(bg);
+    container.text.text(str);
+    container.symboltext = str;
+    container.symbolcolor = _color;
+    container.symbolbg = bg;
+    return;
   }
-  if (page === 1) {
+  else if (page === 1) {
     let copt = {
       x: cx,
       y: cy,
@@ -111,7 +100,7 @@ export function DrawSymbol(ctx, container, str, _color, _size, bg) {
       });
     }
   }
-  if (page === 2) {
+  else if (page === 2) {
     // Little killer style arrows
     let offset = size * 0.05;
     let offset2 = size * 0.15;
@@ -189,7 +178,7 @@ export function DrawSymbol(ctx, container, str, _color, _size, bg) {
       });
     }
   }
-  if (page === 3) {
+  else if (page === 3) {
     // Yajilin style arrows
     let offset = size * 0.2;
     let aopt = {
@@ -266,7 +255,7 @@ export function DrawSymbol(ctx, container, str, _color, _size, bg) {
       });
     }
   }
-  if (page === 4) {
+  else if (page === 4) {
     if (symbol === 1) {
       sym = new Star({
         x: cx,
@@ -368,7 +357,7 @@ export function DrawSymbol(ctx, container, str, _color, _size, bg) {
       });
     }
   }
-  if (page === 5) {
+  else if (page === 5) {
     let o = size * 0.1;
     let rect = {
       x: o,

@@ -494,6 +494,7 @@ class App extends React.Component {
             <MenuItem value="path">Path</MenuItem>
             <MenuItem value="color">Color</MenuItem>
             <MenuItem value="edge">Edge</MenuItem>
+            <MenuItem value="centerline">Center line</MenuItem>
           </Select>
           {this.state.mode === "number" && this.numberStyleBox()}
           {this.state.mode === "cage" && this.cageStyleBox()}
