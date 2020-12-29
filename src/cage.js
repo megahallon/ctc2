@@ -36,7 +36,7 @@ function drawDashCage(ctx, cells, _size, color) {
   ];
 
   let lines = [];
-  ctx.each_cell((m) => {
+  ctx.eachCell((m) => {
     let x = m.x;
     let y = m.y;
     if (!get_cage(x, y)) return;
@@ -132,7 +132,7 @@ function drawEdgeCage(ctx, cells, size, color) {
   ];
 
   let lines = [];
-  ctx.each_cell((m) => {
+  ctx.eachCell((m) => {
     let x = m.x;
     let y = m.y;
     if (!get_cage(x, y)) return;
